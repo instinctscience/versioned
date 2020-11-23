@@ -74,3 +74,16 @@ defmodule MyApp do
   end
 end
 ```
+
+Later, add a new column in a migration with this convenience macro which
+appropriately adds the field to both tables.
+
+```elixir
+defmodule MyApp.Repo.Migrations.CreateCar do
+  use Versioned.Migration
+
+  def change do
+    add_versioned_column(:cars, :color, :string)
+  end
+end
+```
