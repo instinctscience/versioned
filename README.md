@@ -1,16 +1,17 @@
 # Versioned
 
 Versioned is a tool for enhancing `Ecto.Schema` modules to keep a full
-history of changes such that no historical data is lost.
+history of changes.
 
-The underlying method is to create a corresponding "versions" table where any
-change can be found as an inserted record. When a record is deleted, the
-`:is_deleted` field will be set to `true` in two places: the preexisting,
-main record and the newly inserted record in the versions table.
+The underlying method is to create a corresponding "versions" table for each
+schema where any change can be found as a discrete. When a record is deleted,
+the `:is_deleted` field will be set to `true` in two places: the preexisting,
+main record and the newly inserted record in the versions table. Records in
+the versions table are never updated or deleted.
 
-Versioned provides helpers for migrations and schemas, and then the
-`Versioned` module can be used in place of your application's `Repo` module
-for several common uses to manage these records.
+Versioned provides helpers for migrations and schemas. The `Versioned` module
+can then be used in place of your application's `Repo` module for several
+common uses (insert, update, etc) to manage these records.
 
 ## Installation
 
@@ -57,7 +58,7 @@ defmodule MyApp do
       |> Ecto.Changeset.cast(%{name: "Magnificent"}, [:name])
       |> Versioned.update()
 
-    {:ok, car} = Versioned.delete(car)
+    {:ok, _car} = Versioned.delete(car)
 
     # `Versioned.history/2` returns all changes, newest first.
     [
@@ -71,6 +72,19 @@ defmodule MyApp do
 
     # The Versioned convenience function will obfuscate this fact.
     nil = Versioned.get(Car, car_id)
+  end
+end
+```
+
+Later, add a new column in a migration with this convenience macro which
+appropriately adds the field to both tables.
+
+```elixir
+defmodule MyApp.Repo.Migrations.AddCarColor do
+  use Versioned.Migration
+
+  def change do
+    add_versioned_column(:cars, :color, :string)
   end
 end
 ```

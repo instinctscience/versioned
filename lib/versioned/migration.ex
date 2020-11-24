@@ -1,6 +1,6 @@
 defmodule Versioned.Migration do
   @moduledoc """
-  Allows creating tables for tracking change histories.
+  Allows creating tables for versioned schemas.
   """
 
   defmacro __using__(_) do
@@ -15,7 +15,7 @@ defmodule Versioned.Migration do
   with the immutable, append-only history.
   """
   defmacro create_versioned_table(name, opts \\ [], do: block) do
-    name_singular = Keyword.get(opts, :singular, String.trim_trailing(to_string(name), "s"))
+    name_singular = Keyword.get(opts, :singular, String.trim_trailing("#{name}", "s"))
 
     quote do
       create table(unquote(name), primary_key: false) do
@@ -31,6 +31,21 @@ defmodule Versioned.Migration do
         add(:"#{unquote(name_singular)}_id", :uuid, null: false)
         timestamps(type: :utc_datetime_usec, updated_at: false)
         unquote(block)
+      end
+    end
+  end
+
+  @doc "Add a new column to both the main table and the versions table."
+  defmacro add_versioned_column(table_name, name, type, opts \\ []) do
+    singular = Keyword.get(opts, :singular, String.trim_trailing(to_string(table_name), "s"))
+
+    quote bind_quoted: [table_name: table_name, name: name, type: type, singular: singular] do
+      alter table(table_name) do
+        add(name, type)
+      end
+
+      alter table(:"#{singular}_versions") do
+        add(name, type)
       end
     end
   end
