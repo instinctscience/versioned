@@ -4,14 +4,18 @@ Versioned is a tool for enhancing `Ecto.Schema` modules to keep a full
 history of changes.
 
 The underlying method is to create a corresponding "versions" table for each
-schema where any change can be found as a discrete. When a record is deleted,
-the `:is_deleted` field will be set to `true` in two places: the preexisting,
-main record and the newly inserted record in the versions table. Records in
-the versions table are never updated or deleted.
+schema (with all the same columns) where each record indicates a create,
+update, or delete event. When a record is deleted, the versions table entry
+has the record in its final state, and the special `is_deleted` field will be
+set to true.
+
+Records in the main table are mutable and operated on as normal, including
+deletes where the record is truly deleted.
 
 Versioned provides helpers for migrations and schemas. The `Versioned` module
-can then be used in place of your application's `Repo` module for several
-common uses (insert, update, etc) to manage these records.
+has `insert/2`, `update/2` and `delete/2` which should be used in place of
+your application's `Repo` counterparts for versioned tables. Finally,
+`history/3` can be used to retrieve a list of entity versions.
 
 ## Installation
 
@@ -32,6 +36,9 @@ defmodule MyApp.Repo.Migrations.CreateCar do
   use Versioned.Migration
 
   def change do
+    # Creates 2 tables:
+    # - "cars" with columns id, name, inserted_at and updated_at
+    # - "cars_versions" with columns id, name, car_id and inserted_at
     create_versioned_table(:cars) do
       add(:name, :string)
     end
@@ -60,18 +67,15 @@ defmodule MyApp do
 
     {:ok, _car} = Versioned.delete(car)
 
-    # `Versioned.history/2` returns all changes, newest first.
+    # The record is deleted.
+    nil = MyApp.Repo.get(Car, car_id)
+
+    # `Versioned.history/2` still returns all changes, newest first.
     [
       %Car.Version{car_id: ^car_id, name: "Magnificent", is_deleted: true},
       %Car.Version{car_id: ^car_id, name: "Magnificent", is_deleted: false},
       %Car.Version{car_id: ^car_id, name: "Toad", is_deleted: false}
     ] = Versioned.history(Car, car_id)
-
-    # The record really does exist, but it's marked as deleted.
-    %{is_deleted: true} = MyApp.Repo.get(Car, car_id)
-
-    # The Versioned convenience function will obfuscate this fact.
-    nil = Versioned.get(Car, car_id)
   end
 end
 ```

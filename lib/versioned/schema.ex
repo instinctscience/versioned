@@ -2,6 +2,7 @@ defmodule Versioned.Schema do
   @moduledoc """
   Enhances Ecto.Schema modules to have track a full history of changes.
   """
+  alias Versioned.Helpers
 
   defmacro __using__(opts) do
     {singular_opt, ecto_opts} = Keyword.pop(opts, :singular)
@@ -16,22 +17,20 @@ defmodule Versioned.Schema do
 
   @doc "Create a versioned schema."
   defmacro versioned_schema(source, do: block) do
-    # If block has only one line, then it's not wrapped the same way.
-    # Normalize input by wrapping in this case.
-    {:__block__, mid, lines} =
-      with {x, m, _} = line when x != :__block__ <- block do
-        {:__block__, m, [line]}
-      end
+    {:__block__, mid, lines} = Helpers.normalize_block(block)
 
-    version_block =
+    # For versions table, include only lines which yield local foreign keys.
+    versions_block =
       {:__block__, mid,
-       Enum.filter(lines, fn
-         {x, _, _} when x in [:belongs_to, :field] -> true
-         {x, _, _} when x in [:has_many, :many_to_many] -> false
-       end)}
+       Enum.reverse(
+         Enum.reduce(lines, [], fn
+           {:belongs_to, m, [name | _]}, acc -> [{:field, m, [:"#{name}_id", :binary_id]} | acc]
+           {:field, _, _} = line, acc -> [line | acc]
+           _, acc -> acc
+         end)
+       )}
 
     mod = __CALLER__.module
-    version_mod = Module.concat(mod, Version)
 
     quote do
       @source_singular Module.get_attribute(__MODULE__, :singular_opt) ||
@@ -43,8 +42,6 @@ defmodule Versioned.Schema do
 
       @primary_key {:id, :binary_id, autogenerate: true}
       schema unquote(source) do
-        field(:is_deleted, :boolean)
-        has_many(:versions, unquote(version_mod))
         timestamps(type: :utc_datetime_usec)
         unquote(block)
       end
@@ -56,11 +53,11 @@ defmodule Versioned.Schema do
         @source_singular Module.get_attribute(unquote(mod), :source_singular)
 
         @primary_key {:id, :binary_id, autogenerate: true}
-        schema "#{@source_singular}_versions" do
+        schema "#{unquote(source)}_versions" do
           field(:is_deleted, :boolean)
-          belongs_to(:"#{@source_singular}", unquote(mod), type: :binary_id)
+          field(:"#{@source_singular}_id", :binary_id)
           timestamps(type: :utc_datetime_usec, updated_at: false)
-          unquote(version_block)
+          unquote(versions_block)
         end
       end
     end

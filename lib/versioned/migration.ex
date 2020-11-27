@@ -2,6 +2,7 @@ defmodule Versioned.Migration do
   @moduledoc """
   Allows creating tables for versioned schemas.
   """
+  alias Versioned.Helpers
 
   defmacro __using__(_) do
     quote do
@@ -16,21 +17,36 @@ defmodule Versioned.Migration do
   """
   defmacro create_versioned_table(name, opts \\ [], do: block) do
     name_singular = Keyword.get(opts, :singular, String.trim_trailing("#{name}", "s"))
+    {:__block__, mid, lines} = Helpers.normalize_block(block)
+
+    # For versions table, rewrite references to avoid database constraints:
+    # If a record is deleted, we don't want version records with its foreign
+    # key to be affected.
+    versions_block =
+      {:__block__, mid,
+       Enum.reverse(
+         Enum.reduce(lines, [], fn
+           {:add, m, [name, {:references, _m2, [:cars, opts]}]}, acc ->
+             [{:add, m, [name, Keyword.get(opts, :type, :uuid)]} | acc]
+
+           line, acc ->
+             [line | acc]
+         end)
+       )}
 
     quote do
       create table(unquote(name), primary_key: false) do
         add(:id, :uuid, primary_key: true)
-        add(:is_deleted, :boolean, null: false)
         timestamps(type: :utc_datetime_usec)
         unquote(block)
       end
 
-      create table(:"#{unquote(name_singular)}_versions", primary_key: false) do
+      create table(:"#{unquote(name)}_versions", primary_key: false) do
         add(:id, :uuid, primary_key: true)
         add(:is_deleted, :boolean, null: false)
         add(:"#{unquote(name_singular)}_id", :uuid, null: false)
         timestamps(type: :utc_datetime_usec, updated_at: false)
-        unquote(block)
+        unquote(versions_block)
       end
     end
   end

@@ -4,21 +4,6 @@ defmodule Versioned do
   alias Ecto.{Changeset, Multi, Schema}
 
   @doc """
-  Fetches a single struct from the data store where the primary key matches
-  the given id.
-
-  If the record is deleted, obfuscate the fact and return `nil`.
-  """
-  @spec get(Ecto.Queryable.t(), any, keyword) :: Schema.t() | nil
-  def get(queryable, id, opts \\ []) do
-    repo = Application.get_env(:versioned, :repo)
-
-    with %{is_deleted: true} <- repo.get(queryable, id, opts) do
-      nil
-    end
-  end
-
-  @doc """
   Inserts a versioned struct defined via Ecto.Schema or a changeset.
 
   This function calls to the Ecto.Repo module twice -- once to insert the
@@ -28,12 +13,7 @@ defmodule Versioned do
   @spec insert(Schema.t() | Changeset.t(), keyword) :: {:ok, Schema.t()} | {:error, Changeset.t()}
   def insert(struct_or_changeset, opts \\ []) do
     repo = Application.get_env(:versioned, :repo)
-
-    cs =
-      struct_or_changeset
-      |> Changeset.change()
-      |> Changeset.cast(%{is_deleted: false}, [:is_deleted])
-
+    cs = Changeset.change(struct_or_changeset)
     mod = cs.data.__struct__
     version_mod = Module.concat(mod, Version)
 
@@ -70,16 +50,11 @@ defmodule Versioned do
           {:ok, Schema.t()} | {:error, Changeset.t()}
   def delete(struct_or_changeset, opts \\ []) do
     repo = Application.get_env(:versioned, :repo)
-
-    cs =
-      struct_or_changeset
-      |> Changeset.change()
-      |> Changeset.cast(%{is_deleted: true}, [:is_deleted])
-
+    cs = Changeset.change(struct_or_changeset)
     version_mod = Module.concat(cs.data.__struct__, Version)
 
     Multi.new()
-    |> Multi.update(:record, cs, opts)
+    |> Multi.delete(:record, cs, opts)
     |> Multi.insert(:version, &build_version(version_mod, &1.record, deleted: true), opts)
     |> repo.transaction()
     |> handle_transaction(return: :record)
