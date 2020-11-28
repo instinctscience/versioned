@@ -14,8 +14,8 @@ deletes where the record is truly deleted.
 
 Versioned provides helpers for migrations and schemas. The `Versioned` module
 has `insert/2`, `update/2` and `delete/2` which should be used in place of
-your application's `Repo` counterparts for versioned tables. Finally,
-`history/3` can be used to retrieve a list of entity versions.
+your application's `Repo` for versioned tables. Finally, `history/3` can be
+used to retrieve a list of entity versions.
 
 ## Installation
 

@@ -23,16 +23,16 @@ defmodule Versioned.Migration do
     # If a record is deleted, we don't want version records with its foreign
     # key to be affected.
     versions_block =
-      {:__block__, mid,
-       Enum.reverse(
-         Enum.reduce(lines, [], fn
-           {:add, m, [name, {:references, _m2, [:cars, opts]}]}, acc ->
-             [{:add, m, [name, Keyword.get(opts, :type, :uuid)]} | acc]
+      lines
+      |> Enum.reduce([], fn
+        {:add, m, [foreign_key, {:references, _m2, [_plural, opts]}]}, acc ->
+          [{:add, m, [foreign_key, Keyword.get(opts, :type, :uuid)]} | acc]
 
-           line, acc ->
-             [line | acc]
-         end)
-       )}
+        line, acc ->
+          [line | acc]
+      end)
+      |> Enum.reverse()
+      |> (fn lines -> {:__block__, mid, lines} end).()
 
     quote do
       create table(unquote(name), primary_key: false) do

@@ -53,6 +53,8 @@ defmodule VersionedTest do
       {:ok, %{id: person_id} = person} =
         Versioned.insert(%PassengerPerson{car_id: car_id, name: "Wendy"})
 
+      # Notice that we don't raise a ContstraintError with the version records
+      # pointing at these because we haven't made a db-level constraint.
       {:ok, %{id: ^person_id}} = Versioned.delete(person)
       {:ok, %{id: ^car_id}} = Versioned.delete(car)
 
