@@ -53,8 +53,9 @@ defmodule Versioned.Schema do
         @source_singular Module.get_attribute(unquote(mod), :source_singular)
 
         @typedoc """
-        #{String.upcase(@source_singular)} version. See `#{unquote(mod)}` for
-        base fields. Additionally, this schema has:
+        #{String.capitalize(@source_singular)} version. See
+        `#{unquote(inspect(mod))}` for base fields. Additionally, this schema
+        has:
 
         * `:is_deleted` - true if the record is deleted.
         * `:#{@source_singular}_id` - id of the #{@source_singular} in the main
