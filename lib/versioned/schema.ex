@@ -52,6 +52,18 @@ defmodule Versioned.Schema do
 
         @source_singular Module.get_attribute(unquote(mod), :source_singular)
 
+        @typedoc """
+        #{String.upcase(@source_singular)} version. See `#{unquote(mod)}` for
+        base fields. Additionally, this schema has:
+
+        * `:is_deleted` - true if the record is deleted.
+        * `:#{@source_singular}_id` - id of the #{@source_singular} in the main
+          table to which this version belongs. Note that it is just a field and
+          not a true relationship so that the main record can be deleted while
+          preserving the versions.
+        """
+        @type t :: %__MODULE__{}
+
         @primary_key {:id, :binary_id, autogenerate: true}
         schema "#{unquote(source)}_versions" do
           field(:is_deleted, :boolean)

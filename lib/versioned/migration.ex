@@ -53,15 +53,21 @@ defmodule Versioned.Migration do
 
   @doc "Add a new column to both the main table and the versions table."
   defmacro add_versioned_column(table_name, name, type, opts \\ []) do
-    singular = Keyword.get(opts, :singular, String.trim_trailing(to_string(table_name), "s"))
+    {singular, opts} = Keyword.pop(opts, :singular, to_string(table_name))
 
-    quote bind_quoted: [table_name: table_name, name: name, type: type, singular: singular] do
+    quote bind_quoted: [
+            table_name: table_name,
+            name: name,
+            opts: opts,
+            type: type,
+            singular: singular
+          ] do
       alter table(table_name) do
-        add(name, type)
+        add(name, type, opts)
       end
 
       alter table(:"#{singular}_versions") do
-        add(name, type)
+        add(name, type, opts)
       end
     end
   end
