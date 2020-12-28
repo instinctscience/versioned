@@ -41,7 +41,7 @@ defmodule Versioned.MixProject do
 
   defp aliases do
     [
-      ci: ["lint", "dialyzer"],
+      ci: ["lint", "test", "dialyzer"],
       lint: [
         "compile --warnings-as-errors",
         "format --check-formatted",

@@ -36,4 +36,20 @@ defmodule VersionedTest do
 
     assert is_nil(Versioned.get(Car, car_id))
   end
+
+  test "add_versioned_column" do
+    %{rows: rows} =
+      Ecto.Adapters.SQL.query!(Repo, """
+      SELECT
+        table_name,
+        column_name,
+        data_type
+      FROM
+        information_schema.columns
+      WHERE
+        table_name = 'cars';
+      """)
+
+    assert Enum.any?(rows, &(&1 == ["cars", "color", "character varying"]))
+  end
 end

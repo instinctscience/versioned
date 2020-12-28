@@ -10,5 +10,7 @@ defmodule Versioned.Test.Repo.Migrations.CreateCar do
       add(:name, :string)
       add(:car_id, references(:cars, type: :uuid))
     end
+
+    add_versioned_column(:cars, :color, :string)
   end
 end
