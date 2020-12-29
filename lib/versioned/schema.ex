@@ -11,29 +11,18 @@ defmodule Versioned.Schema do
       use Ecto.Schema, unquote(ecto_opts)
       import unquote(__MODULE__)
       @ecto_opts unquote(ecto_opts)
-      @singular_opt unquote(singular_opt && to_string(singular_opt))
+      @source_singular unquote(singular_opt && to_string(singular_opt))
     end
   end
 
   @doc "Create a versioned schema."
   defmacro versioned_schema(source, do: block) do
-    {:__block__, mid, lines} = Helpers.normalize_block(block)
-
-    # For versions table, include only lines which yield local foreign keys.
-    versions_block =
-      {:__block__, mid,
-       Enum.reverse(
-         Enum.reduce(lines, [], fn
-           {:belongs_to, m, [name | _]}, acc -> [{:field, m, [:"#{name}_id", :binary_id]} | acc]
-           {:field, _, _} = line, acc -> [line | acc]
-           _, acc -> acc
-         end)
-       )}
+    {:__block__, _m, lines_ast} = Helpers.normalize_block(block)
 
     mod = __CALLER__.module
 
     quote do
-      @source_singular Module.get_attribute(__MODULE__, :singular_opt) ||
+      @source_singular Module.get_attribute(__MODULE__, :source_singular) ||
                          unquote(String.trim_trailing(source, "s"))
 
       @doc "Get the non-plural name of the source."
@@ -51,6 +40,7 @@ defmodule Versioned.Schema do
         use Ecto.Schema, @ecto_opts
 
         @source_singular Module.get_attribute(unquote(mod), :source_singular)
+        |> IO.inspect(label: "SOURCE SINGULAR")
 
         @typedoc """
         #{String.capitalize(@source_singular)} version. See
@@ -70,9 +60,84 @@ defmodule Versioned.Schema do
           field(:is_deleted, :boolean)
           field(:"#{@source_singular}_id", :binary_id)
           timestamps(type: :utc_datetime_usec, updated_at: false)
-          unquote(versions_block)
+          version_lines(unquote(lines_ast))
+          # unquote(versions_block)
+          # unquote({:__block__, mid, version_lines(lines, quote(do: @source_singular))})
         end
       end
     end
   end
+
+  defmacro version_lines(lines_ast) do
+    # IO.inspect(source_singular, label: "SSSINGULAR")
+    # {:has_many, [line: 23], [:location_users, {:__aliases__, [line: 23], [:LocationUser]}]}
+
+    lines_ast
+    |> Enum.reduce([], fn
+      {:has_many, _m, [field, entity]} = line, acc ->
+        IO.inspect(line, label: "LINE")
+
+        ast = quote do
+          has_many unquote(field), unquote(entity), foreign_key: :"#{@source_singular}_id", references: :"#{@source_singular}_id"
+        end
+
+        [ast | acc]
+
+      # {:belongs_to, m, [:inserted_by, entity]}
+
+      line, acc ->
+        IO.inspect(line, label: "line")
+        [line | acc]
+    end)
+    |> Enum.reverse()
+  end
+
+  # defp do_version_lines(line, acc) do
+  #   [line | acc]
+  # end
+
+  #   versions_block =
+  #     {:__block__, mid,
+  #      Enum.reverse(
+  #        Enum.reduce(lines, [], fn
+  #          {:belongs_to, m, [name | _]}, acc ->
+  #            [{:field, m, [:"#{name}_id", :binary_id]} | acc]
+
+  #          {:field, _, [_name, _type, opts]} = line, acc ->
+  #            if opts[:virtual], do: acc, else: [line | acc]
+
+  #          {:field, _, _} = line, acc ->
+  #            [line | acc]
+
+  #          _, acc ->
+  #   end)
+  #   |> Enum.reverse()
+  # end
+
+  # defp do_version_lines({:has_many, entity}, acc) do
+  #   IO.inspect(k, label: "kkkkkkk")
+  #   acc
+  # end
+
+  # defp do_version_lines(line, acc) do
+  #   [line | acc]
+  # end
+
+  # versions_block =
+  #   {:__block__, mid,
+  #    Enum.reverse(
+  #      Enum.reduce(lines, [], fn
+  #        {:belongs_to, m, [name | _]}, acc ->
+  #          [{:field, m, [:"#{name}_id", :binary_id]} | acc]
+
+  #        {:field, _, [_name, _type, opts]} = line, acc ->
+  #          if opts[:virtual], do: acc, else: [line | acc]
+
+  #        {:field, _, _} = line, acc ->
+  #          [line | acc]
+
+  #        _, acc ->
+  #          acc
+  #      end)
+  #    )}
 end

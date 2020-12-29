@@ -60,14 +60,19 @@ defmodule Versioned do
     |> handle_transaction(return: :record)
   end
 
-  @doc "List all versions of a schema module, newest first."
+  @doc "List all versions for a schema module, newest first."
   @spec history(module, any, keyword) :: [Schema.t()]
   def history(module, id, opts \\ []) do
     repo = Application.get_env(:versioned, :repo)
+    repo.all(history_query(module, id), opts)
+  end
+
+  @doc "Get the query to fetch all the versions for a schema, newest first."
+  @spec history_query(module, any) :: Ecto.Queryable.t()
+  def history_query(module, id) do
     version_mod = Module.concat(module, Version)
     fk = :"#{module.source_singular()}_id"
-
-    repo.all(from(version_mod, where: ^[{fk, id}], order_by: [desc: :inserted_at]), opts)
+    from(version_mod, where: ^[{fk, id}], order_by: [desc: :inserted_at])
   end
 
   # Create a `version_mod` struct to insert from a new instance of the record.
