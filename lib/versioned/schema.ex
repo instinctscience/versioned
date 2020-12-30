@@ -40,7 +40,11 @@ defmodule Versioned.Schema do
         use Ecto.Schema, @ecto_opts
 
         @source_singular Module.get_attribute(unquote(mod), :source_singular)
-        |> IO.inspect(label: "SOURCE SINGULAR")
+
+        # Set @foreign_key_type if the main module did.
+        with t when not is_nil(t) <- Module.get_attribute(unquote(mod), :foreign_key_type) do
+          @foreign_key_type t
+        end
 
         @typedoc """
         #{String.capitalize(@source_singular)} version. See
@@ -74,19 +78,21 @@ defmodule Versioned.Schema do
 
     lines_ast
     |> Enum.reduce([], fn
-      {:has_many, _m, [field, entity]} = line, acc ->
-        IO.inspect(line, label: "LINE")
-
-        ast = quote do
-          has_many unquote(field), unquote(entity), foreign_key: :"#{@source_singular}_id", references: :"#{@source_singular}_id"
-        end
+      {:has_many, _m, [field, entity]}, acc ->
+        ast =
+          quote do
+            has_many(unquote(field), unquote(entity),
+              foreign_key: :"#{@source_singular}_id",
+              references: :"#{@source_singular}_id"
+            )
+          end
 
         [ast | acc]
 
       # {:belongs_to, m, [:inserted_by, entity]}
 
       line, acc ->
-        IO.inspect(line, label: "line")
+        # IO.inspect(line, label: "line")
         [line | acc]
     end)
     |> Enum.reverse()
