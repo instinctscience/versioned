@@ -65,85 +65,29 @@ defmodule Versioned.Schema do
           field(:"#{@source_singular}_id", :binary_id)
           timestamps(type: :utc_datetime_usec, updated_at: false)
           version_lines(unquote(lines_ast))
-          # unquote(versions_block)
-          # unquote({:__block__, mid, version_lines(lines, quote(do: @source_singular))})
         end
       end
     end
   end
 
   defmacro version_lines(lines_ast) do
-    # IO.inspect(source_singular, label: "SSSINGULAR")
-    # {:has_many, [line: 23], [:location_users, {:__aliases__, [line: 23], [:LocationUser]}]}
+    backwards =
+      Enum.reduce(lines_ast, [], fn
+        {:has_many, _m, [field, entity]}, acc ->
+          ast =
+            quote do
+              has_many(unquote(field), unquote(entity),
+                foreign_key: :"#{@source_singular}_id",
+                references: :"#{@source_singular}_id"
+              )
+            end
 
-    lines_ast
-    |> Enum.reduce([], fn
-      {:has_many, _m, [field, entity]}, acc ->
-        ast =
-          quote do
-            has_many(unquote(field), unquote(entity),
-              foreign_key: :"#{@source_singular}_id",
-              references: :"#{@source_singular}_id"
-            )
-          end
+          [ast | acc]
 
-        [ast | acc]
+        line, acc ->
+          [line | acc]
+      end)
 
-      # {:belongs_to, m, [:inserted_by, entity]}
-
-      line, acc ->
-        # IO.inspect(line, label: "line")
-        [line | acc]
-    end)
-    |> Enum.reverse()
+    Enum.reverse(backwards)
   end
-
-  # defp do_version_lines(line, acc) do
-  #   [line | acc]
-  # end
-
-  #   versions_block =
-  #     {:__block__, mid,
-  #      Enum.reverse(
-  #        Enum.reduce(lines, [], fn
-  #          {:belongs_to, m, [name | _]}, acc ->
-  #            [{:field, m, [:"#{name}_id", :binary_id]} | acc]
-
-  #          {:field, _, [_name, _type, opts]} = line, acc ->
-  #            if opts[:virtual], do: acc, else: [line | acc]
-
-  #          {:field, _, _} = line, acc ->
-  #            [line | acc]
-
-  #          _, acc ->
-  #   end)
-  #   |> Enum.reverse()
-  # end
-
-  # defp do_version_lines({:has_many, entity}, acc) do
-  #   IO.inspect(k, label: "kkkkkkk")
-  #   acc
-  # end
-
-  # defp do_version_lines(line, acc) do
-  #   [line | acc]
-  # end
-
-  # versions_block =
-  #   {:__block__, mid,
-  #    Enum.reverse(
-  #      Enum.reduce(lines, [], fn
-  #        {:belongs_to, m, [name | _]}, acc ->
-  #          [{:field, m, [:"#{name}_id", :binary_id]} | acc]
-
-  #        {:field, _, [_name, _type, opts]} = line, acc ->
-  #          if opts[:virtual], do: acc, else: [line | acc]
-
-  #        {:field, _, _} = line, acc ->
-  #          [line | acc]
-
-  #        _, acc ->
-  #          acc
-  #      end)
-  #    )}
 end
