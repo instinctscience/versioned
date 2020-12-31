@@ -25,9 +25,11 @@ defmodule Versioned.Schema do
       @source_singular Module.get_attribute(__MODULE__, :source_singular) ||
                          unquote(String.trim_trailing(source, "s"))
 
-      @doc "Get the non-plural name of the source."
-      @spec source_singular :: String.t()
-      def source_singular, do: @source_singular
+      @doc """
+      Get some information about this versioned schema.
+      """
+      @spec __versioned__(atom) :: String.t()
+      def __versioned__(:source_singular), do: @source_singular
 
       @primary_key {:id, :binary_id, autogenerate: true}
       schema unquote(source) do
@@ -42,9 +44,8 @@ defmodule Versioned.Schema do
         @source_singular Module.get_attribute(unquote(mod), :source_singular)
 
         # Set @foreign_key_type if the main module did.
-        with t when not is_nil(t) <- Module.get_attribute(unquote(mod), :foreign_key_type) do
-          @foreign_key_type t
-        end
+        fkt = Module.get_attribute(unquote(mod), :foreign_key_type)
+        fkt && @foreign_key_type fkt
 
         @typedoc """
         #{String.capitalize(@source_singular)} version. See
@@ -70,24 +71,35 @@ defmodule Versioned.Schema do
     end
   end
 
+  @doc """
+  Convert a list of ast lines from the main schema into ast lines to be used
+  for the version schema.
+  """
   defmacro version_lines(lines_ast) do
-    backwards =
-      Enum.reduce(lines_ast, [], fn
-        {:has_many, _m, [field, entity]}, acc ->
-          ast =
-            quote do
-              has_many(unquote(field), unquote(entity),
-                foreign_key: :"#{@source_singular}_id",
-                references: :"#{@source_singular}_id"
-              )
-            end
+    lines_ast
+    |> Enum.reduce([], &do_version_line/2)
+    |> Enum.reverse()
+  end
 
-          [ast | acc]
+  @spec do_version_line(Macro.t(), Macro.t()) :: Macro.t()
+  defp do_version_line({:has_many, _m, [field, entity]}, acc) do
+    line_ast =
+      quote bind_quoted: [entity: entity, field: field] do
+        assoc_mod =
+          if function_exported?(entity, :__versioned__, 1),
+            do: Module.concat(entity, Version),
+            else: entity
 
-        line, acc ->
-          [line | acc]
-      end)
+        has_many(field, assoc_mod,
+          foreign_key: :"#{@source_singular}_id",
+          references: :"#{@source_singular}_id"
+        )
+      end
 
-    Enum.reverse(backwards)
+    [line_ast | acc]
+  end
+
+  defp do_version_line(line_ast, acc) do
+    [line_ast | acc]
   end
 end

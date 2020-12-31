@@ -71,7 +71,7 @@ defmodule Versioned do
   @spec history_query(module, any) :: Ecto.Queryable.t()
   def history_query(module, id) do
     version_mod = Module.concat(module, Version)
-    fk = :"#{module.source_singular()}_id"
+    fk = :"#{module.__versioned__(:source_singular)}_id"
     from(version_mod, where: ^[{fk, id}], order_by: [desc: :inserted_at])
   end
 
@@ -84,7 +84,7 @@ defmodule Versioned do
       |> mod.__schema__()
       |> Enum.reject(&(&1 in [:id, :inserted_at, :updated_at]))
       |> Map.new(&{&1, Map.get(struct, &1)})
-      |> Map.put(:"#{mod.source_singular()}_id", struct.id)
+      |> Map.put(:"#{mod.__versioned__(:source_singular)}_id", struct.id)
       |> Map.put(:is_deleted, Keyword.get(opts, :deleted, false))
 
     Changeset.change(struct(version_mod), params)
