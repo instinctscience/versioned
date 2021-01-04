@@ -25,16 +25,62 @@ defmodule VersionedTest do
            } = Repo.one(from(Car, where: [id: ^car_id], preload: :passenger_people))
   end
 
-  test "deletion" do
-    {:ok, %{id: car_id} = car} = Versioned.insert(%Car{name: "Toad"})
-    {:ok, %{id: ^car_id}} = Versioned.delete(car)
+  describe "deletion" do
+    test "basic" do
+      {:ok, %{id: car_id} = car} = Versioned.insert(%Car{name: "Toad"})
+      {:ok, %{id: ^car_id}} = Versioned.delete(car)
 
-    assert %{is_deleted: true, name: "Toad"} = Repo.get(Car, car_id)
+      assert is_nil(Repo.get(Car, car_id))
 
-    assert [%{is_deleted: true, name: "Toad"}, %{is_deleted: false, name: "Toad"}] =
-             Versioned.history(Car, car_id)
+      assert [
+               %{car_id: ^car_id, is_deleted: true, name: "Toad"},
+               %{car_id: ^car_id, is_deleted: false, name: "Toad"}
+             ] = Versioned.history(Car, car_id)
+    end
 
-    assert is_nil(Versioned.get(Car, car_id))
+    test "with related record, raises exception" do
+      {:ok, %{id: car_id} = car} = Versioned.insert(%Car{name: "Toad"})
+      {:ok, _person} = Versioned.insert(%PassengerPerson{car_id: car_id, name: "Wendy"})
+
+      assert_raise Ecto.ConstraintError, fn ->
+        Versioned.delete(car)
+      end
+    end
+
+    test "with related record, deleting it first" do
+      {:ok, %{id: car_id} = car} = Versioned.insert(%Car{name: "Toad"})
+
+      {:ok, %{id: person_id} = person} =
+        Versioned.insert(%PassengerPerson{car_id: car_id, name: "Wendy"})
+
+      # Notice that we don't raise a ContstraintError with the version records
+      # pointing at these because we haven't made a db-level constraint.
+      {:ok, %{id: ^person_id}} = Versioned.delete(person)
+      {:ok, %{id: ^car_id}} = Versioned.delete(car)
+
+      assert is_nil(Repo.get(Car, car_id))
+      assert is_nil(Repo.get(PassengerPerson, person_id))
+
+      assert [
+               %Car.Version{is_deleted: true, name: "Toad"},
+               %Car.Version{is_deleted: false, name: "Toad"}
+             ] = Versioned.history(Car, car_id)
+
+      assert [
+               %PassengerPerson.Version{
+                 car_id: ^car_id,
+                 is_deleted: true,
+                 name: "Wendy",
+                 passenger_person_id: ^person_id
+               },
+               %PassengerPerson.Version{
+                 car_id: ^car_id,
+                 is_deleted: false,
+                 name: "Wendy",
+                 passenger_person_id: ^person_id
+               }
+             ] = Versioned.history(PassengerPerson, person_id)
+    end
   end
 
   test "add_versioned_column" do

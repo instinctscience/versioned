@@ -42,6 +42,8 @@ defmodule Versioned.MixProject do
   defp aliases do
     [
       ci: ["lint", "test", "dialyzer"],
+      "ecto.setup": ["ecto.create", "ecto.migrate"],
+      "ecto.reset": ["ecto.drop", "ecto.setup"],
       lint: [
         "compile --warnings-as-errors",
         "format --check-formatted",
