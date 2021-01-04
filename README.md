@@ -80,6 +80,10 @@ defmodule MyApp do
 end
 ```
 
+## Extras
+
+### Migration Helper: Add Column on a Versioned Table
+
 Later, add a new column in a migration with this convenience macro which
 appropriately adds the field to both tables.
 
@@ -90,5 +94,30 @@ defmodule MyApp.Repo.Migrations.AddCarColor do
   def change do
     add_versioned_column(:cars, :color, :string)
   end
+end
+```
+
+### Absinthe Helper: Create a Version Object
+
+While versioned does not depend on Absinthe, it does provide a shortcut for
+creating an absinthe "version" object, wrapping one of your entities. In the
+following example, `:car_version` would have the following fields:
+
+* `:id` - primary key of the version record
+* `:is_deleted` - boolean indicating if the record was deleted as of this version
+* `:inserted_at` - UTC timestamp, indicating when the version was created
+* `:car` - The car as it was in this version
+
+```elixir
+defmodule MyApp.Schema.Types.User do
+  use Absinthe.Schema.Notation
+  import Versioned.Absinthe
+
+  object :car do
+    field :id, :id
+    field :name, :string
+  end
+
+  version_object :car_version, :car
 end
 ```
