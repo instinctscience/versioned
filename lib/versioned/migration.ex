@@ -48,6 +48,8 @@ defmodule Versioned.Migration do
         timestamps(type: :utc_datetime_usec, updated_at: false)
         unquote(versions_block)
       end
+
+      create index(:"#{unquote(name)}_versions", :"#{unquote(name_singular)}_id")
     end
   end
 
