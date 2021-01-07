@@ -12,7 +12,6 @@ defmodule Versioned do
   """
   @spec insert(Schema.t() | Changeset.t(), keyword) :: {:ok, Schema.t()} | {:error, Changeset.t()}
   def insert(struct_or_changeset, opts \\ []) do
-    repo = Application.get_env(:versioned, :repo)
     cs = Changeset.change(struct_or_changeset)
     mod = cs.data.__struct__
     version_mod = Module.concat(mod, Version)
@@ -20,7 +19,7 @@ defmodule Versioned do
     Multi.new()
     |> Multi.insert(:record, cs, opts)
     |> Multi.insert(:version, &build_version(version_mod, &1.record), opts)
-    |> repo.transaction()
+    |> repo().transaction()
     |> handle_transaction(return: :record)
   end
 
@@ -33,13 +32,12 @@ defmodule Versioned do
   """
   @spec update(Changeset.t(), keyword) :: {:ok, Schema.t()} | {:error, Changeset.t()}
   def update(changeset, opts \\ []) do
-    repo = Application.get_env(:versioned, :repo)
     version_mod = Module.concat(changeset.data.__struct__, Version)
 
     Multi.new()
     |> Multi.update(:record, changeset, opts)
     |> Multi.insert(:version, &build_version(version_mod, &1.record), opts)
-    |> repo.transaction()
+    |> repo().transaction()
     |> handle_transaction(return: :record)
   end
 
@@ -49,30 +47,39 @@ defmodule Versioned do
   @spec delete(struct_or_changeset :: Schema.t() | Changeset.t(), opts :: Keyword.t()) ::
           {:ok, Schema.t()} | {:error, Changeset.t()}
   def delete(struct_or_changeset, opts \\ []) do
-    repo = Application.get_env(:versioned, :repo)
     cs = Changeset.change(struct_or_changeset)
     version_mod = Module.concat(cs.data.__struct__, Version)
 
     Multi.new()
     |> Multi.delete(:record, cs, opts)
     |> Multi.insert(:version, &build_version(version_mod, &1.record, deleted: true), opts)
-    |> repo.transaction()
+    |> repo().transaction()
     |> handle_transaction(return: :record)
   end
 
   @doc "List all versions for a schema module, newest first."
   @spec history(module, any, keyword) :: [Schema.t()]
   def history(module, id, opts \\ []) do
-    repo = Application.get_env(:versioned, :repo)
-    repo.all(history_query(module, id), opts)
+    repo().all(history_query(module, id), opts)
   end
 
   @doc "Get the query to fetch all the versions for a schema, newest first."
   @spec history_query(module, any) :: Ecto.Queryable.t()
   def history_query(module, id) do
     version_mod = Module.concat(module, Version)
-    fk = :"#{module.__versioned__(:source_singular)}_id"
+    fk = module.__versioned__(:entity_fk)
     from(version_mod, where: ^[{fk, id}], order_by: [desc: :inserted_at])
+  end
+
+  @doc "Get the timestamp for the very first version of this entity."
+  @spec inserted_at(struct) :: DateTime.t() | nil
+  def inserted_at(%ver_mod{} = ver_struct) do
+    fk = ver_mod.entity_module().__versioned__(:entity_fk)
+    id = Map.get(ver_struct, fk)
+    query = from(ver_mod, where: ^[{fk, id}], limit: 1, order_by: :inserted_at)
+    result = repo().one(query)
+
+    result && result.inserted_at
   end
 
   # Create a `version_mod` struct to insert from a new instance of the record.
@@ -114,4 +121,10 @@ defmodule Versioned do
 
   defp handle_transaction({:error, err}, _),
     do: {:error, "Transaction error: #{inspect(err)}"}
+
+  # Get the configured Ecto.Repo module.
+  @spec repo :: module
+  defp repo do
+    Application.get_env(:versioned, :repo)
+  end
 end

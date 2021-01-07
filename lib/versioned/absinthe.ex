@@ -27,26 +27,4 @@ defmodule Versioned.Absinthe do
       end
     end
   end
-
-  @doc """
-  Convert a version record as defined by `Versioned.Schema` into a version as
-  defined by `version_object/3` which encapsulates the original record.
-
-  ## Example
-
-      iex> record = %{id: 2, user_id: 3, inserted_at: 9, is_deleted: false, name: "Bob"}
-      iex> wrap(record, :user)
-      %{id: 2, inserted_at: 9, is_deleted: false, user: %{id: 3, name: "Bob"}}
-  """
-  @spec wrap(map, atom) :: map
-  def wrap(record, name) do
-    record_id_field = :"#{name}_id"
-    ver_fields = [:id, :inserted_at, :is_deleted]
-    drop_from_record = [record_id_field | ver_fields]
-    version = Map.take(record, ver_fields)
-    id = Map.get(record, record_id_field)
-    record = record |> Map.drop(drop_from_record) |> Map.put(:id, id)
-
-    Map.put(version, name, record)
-  end
 end

@@ -29,6 +29,7 @@ defmodule Versioned.Schema do
       Get some information about this versioned schema.
       """
       @spec __versioned__(atom) :: String.t()
+      def __versioned__(:entity_fk), do: :"#{@source_singular}_id"
       def __versioned__(:source_singular), do: @source_singular
 
       @primary_key {:id, :binary_id, autogenerate: true}
@@ -67,6 +68,10 @@ defmodule Versioned.Schema do
           timestamps(type: :utc_datetime_usec, updated_at: false)
           version_lines(unquote(lines_ast))
         end
+
+        @doc "Get the Ecto.Schema module for which this version module belongs "
+        @spec entity_module :: module
+        def entity_module, do: unquote(mod)
       end
     end
   end
