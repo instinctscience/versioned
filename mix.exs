@@ -27,7 +27,7 @@ defmodule Versioned.MixProject do
 
   defp deps do
     [
-      {:credo, "~> 1.5.0-rc.2", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
       {:ecto_sql, "~> 3.3", only: [:test]},
       {:ecto, "~> 2.2 or ~> 3.0"},
