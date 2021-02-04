@@ -49,7 +49,7 @@ defmodule Versioned.Migration do
         unquote(versions_block)
       end
 
-      create index(:"#{unquote(name)}_versions", :"#{unquote(name_singular)}_id")
+      create(index(:"#{unquote(name)}_versions", :"#{unquote(name_singular)}_id"))
     end
   end
 

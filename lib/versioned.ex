@@ -57,18 +57,37 @@ defmodule Versioned do
     |> handle_transaction(return: :record)
   end
 
-  @doc "List all versions for a schema module, newest first."
+  @doc """
+  List all versions for a schema module, newest first.
+
+  Options can include anything used by the repo's `all/2` and
+  `history_query/3`.
+  """
   @spec history(module, any, keyword) :: [Schema.t()]
   def history(module, id, opts \\ []) do
-    repo().all(history_query(module, id), opts)
+    repo().all(history_query(module, id, opts), opts)
   end
 
-  @doc "Get the query to fetch all the versions for a schema, newest first."
-  @spec history_query(module, any) :: Ecto.Queryable.t()
-  def history_query(module, id) do
+  @doc """
+  Get the query to fetch all the versions for a schema, newest first.
+
+  ## Options
+
+  * `:limit` - Max number of records to return. Default: return all records.
+  """
+  @spec history_query(module, any, keyword) :: Ecto.Queryable.t()
+  def history_query(module, id, opts \\ []) do
     version_mod = Module.concat(module, Version)
     fk = module.__versioned__(:entity_fk)
-    from(version_mod, where: ^[{fk, id}], order_by: [desc: :inserted_at])
+    query = from(version_mod, where: ^[{fk, id}], order_by: [desc: :inserted_at])
+
+    Enum.reduce(opts, query, fn
+      {:limit, limit}, query ->
+        from query, limit: ^limit
+
+      {_, _}, query ->
+        query
+    end)
   end
 
   @doc "Get the timestamp for the very first version of this entity."

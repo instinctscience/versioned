@@ -83,6 +83,19 @@ defmodule VersionedTest do
     end
   end
 
+  test "history with limit" do
+    {:ok, %{id: car_id} = car} = Versioned.insert(%Car{name: "Mustang"})
+
+    {:ok, %{id: ^car_id}} = car |> Car.changeset(%{name: "Mustangg"}) |> Versioned.update()
+    {:ok, %{id: ^car_id}} = car |> Car.changeset(%{name: "Mustanggg"}) |> Versioned.update()
+
+    assert [
+             %Versioned.Test.Car.Version{car_id: car_id, name: "Mustanggg"},
+             %Versioned.Test.Car.Version{car_id: car_id, name: "Mustangg"}
+           ] = Versioned.history(Car, car_id, limit: 2)
+  end
+
+  # The migration added the color column with this feature. Assert it exists.
   test "add_versioned_column" do
     %{rows: rows} =
       Ecto.Adapters.SQL.query!(Repo, """

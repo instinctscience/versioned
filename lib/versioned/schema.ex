@@ -27,8 +27,15 @@ defmodule Versioned.Schema do
 
       @doc """
       Get some information about this versioned schema.
+
+      The argument, an atom, can be one of:
+
+      * `:entity_fk` - `:#{@source_singular}_id` will be returned, the foreign
+        key column on the versions table which points at the real record.
+      * `:source_singular` - the string `"#{@source_singular}"` will be
+        returned.
       """
-      @spec __versioned__(atom) :: String.t()
+      @spec __versioned__(:entity_fk | :source_singular) :: atom | String.t()
       def __versioned__(:entity_fk), do: :"#{@source_singular}_id"
       def __versioned__(:source_singular), do: @source_singular
 
@@ -51,13 +58,11 @@ defmodule Versioned.Schema do
         @typedoc """
         #{String.capitalize(@source_singular)} version. See
         `#{unquote(inspect(mod))}` for base fields. Additionally, this schema
-        has:
-
-        * `:is_deleted` - true if the record is deleted.
-        * `:#{@source_singular}_id` - id of the #{@source_singular} in the main
-          table to which this version belongs. Note that it is just a field and
-          not a true relationship so that the main record can be deleted while
-          preserving the versions.
+        has `:is_deleted` (true if the record is deleted) and
+        `:#{@source_singular}_id` which holds id of the #{@source_singular}
+        in the main table to which this version belongs. Note that it is just
+        a field and not a true relationship so that the main record can be
+        deleted while preserving the versions.
         """
         @type t :: %__MODULE__{}
 
@@ -69,7 +74,7 @@ defmodule Versioned.Schema do
           version_lines(unquote(lines_ast))
         end
 
-        @doc "Get the Ecto.Schema module for which this version module belongs "
+        @doc "Get the Ecto.Schema module for which this version module belongs."
         @spec entity_module :: module
         def entity_module, do: unquote(mod)
       end
