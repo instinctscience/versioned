@@ -69,6 +69,16 @@ defmodule Versioned do
   end
 
   @doc """
+  Get a version for a schema module.
+
+  Options can include anything used by the repo's `get/3`.
+  """
+  @spec get(module, any, keyword) :: Schema.t() | nil
+  def get(module, id, opts \\ []) do
+    repo().get(version_mod(module), id, opts)
+  end
+
+  @doc """
   Get the query to fetch all the versions for a schema, newest first.
 
   ## Options
@@ -77,7 +87,7 @@ defmodule Versioned do
   """
   @spec history_query(module, any, keyword) :: Ecto.Queryable.t()
   def history_query(module, id, opts \\ []) do
-    version_mod = Module.concat(module, Version)
+    version_mod = version_mod(module)
     fk = module.__versioned__(:entity_fk)
     query = from(version_mod, where: ^[{fk, id}], order_by: [desc: :inserted_at])
 
@@ -146,4 +156,8 @@ defmodule Versioned do
   defp repo do
     Application.get_env(:versioned, :repo)
   end
+
+  @doc "Get the version module from the subject module."
+  @spec version_mod(module) :: module
+  def version_mod(module), do: Module.concat(module, Version)
 end

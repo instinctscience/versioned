@@ -15,7 +15,7 @@ defmodule VersionedTest do
 
     assert [
              %Car.Version{car_id: ^car_id, name: "Magnificent"},
-             %Car.Version{car_id: ^car_id, name: "Toad"}
+             %Car.Version{id: ver_id, car_id: ^car_id, name: "Toad"}
            ] = Versioned.history(Car, car_id)
 
     assert %{
@@ -23,6 +23,8 @@ defmodule VersionedTest do
              name: "Magnificent",
              passenger_people: [%{id: ^person_id, name: "Wendy"}]
            } = Repo.one(from(Car, where: [id: ^car_id], preload: :passenger_people))
+
+    assert %{car_id: ^car_id, name: "Toad"} = Versioned.get(Car, ver_id)
   end
 
   describe "deletion" do
