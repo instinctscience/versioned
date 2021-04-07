@@ -10,7 +10,10 @@ defmodule Versioned do
   record itself, and once to insert a copy as the first version in the
   versions table.
   """
-  @spec insert(Schema.t() | Changeset.t(), keyword) :: {:ok, Schema.t()} | {:error, Changeset.t()}
+  @spec insert(Schema.t() | Changeset.t(), keyword) ::
+          {:ok, Schema.t()}
+          | {:error, any()}
+          | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def insert(struct_or_changeset, opts \\ []) do
     cs = Changeset.change(struct_or_changeset)
     mod = cs.data.__struct__
@@ -20,7 +23,7 @@ defmodule Versioned do
     |> Multi.insert(:record, cs, opts)
     |> Multi.insert(:version, &build_version(version_mod, &1.record), opts)
     |> repo().transaction()
-    |> handle_transaction(return: :record)
+    |> maybe_add_version_id_and_return_record()
   end
 
   @doc """
@@ -30,7 +33,10 @@ defmodule Versioned do
   the record itself, and then `insert/1` to add a copy of the new version to
   the versions table.
   """
-  @spec update(Changeset.t(), keyword) :: {:ok, Schema.t()} | {:error, Changeset.t()}
+  @spec update(Changeset.t(), keyword) ::
+          {:ok, Schema.t()}
+          | {:error, any()}
+          | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def update(changeset, opts \\ []) do
     version_mod = Module.concat(changeset.data.__struct__, Version)
 
@@ -38,14 +44,16 @@ defmodule Versioned do
     |> Multi.update(:record, changeset, opts)
     |> Multi.insert(:version, &build_version(version_mod, &1.record), opts)
     |> repo().transaction()
-    |> handle_transaction(return: :record)
+    |> maybe_add_version_id_and_return_record()
   end
 
   @doc """
   Deletes a struct using its primary key and adds a deleted version.
   """
   @spec delete(struct_or_changeset :: Schema.t() | Changeset.t(), opts :: Keyword.t()) ::
-          {:ok, Schema.t()} | {:error, Changeset.t()}
+          {:ok, Schema.t()}
+          | {:error, any()}
+          | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def delete(struct_or_changeset, opts \\ []) do
     cs = Changeset.change(struct_or_changeset)
     version_mod = Module.concat(cs.data.__struct__, Version)
@@ -54,8 +62,34 @@ defmodule Versioned do
     |> Multi.delete(:record, cs, opts)
     |> Multi.insert(:version, &build_version(version_mod, &1.record, deleted: true), opts)
     |> repo().transaction()
-    |> handle_transaction(return: :record)
+    |> maybe_add_version_id_and_return_record()
   end
+
+  # If the transaction return is successful and the record has a `:version_id`
+  # field, then populate it with the newly created version id.
+  @spec maybe_add_version_id_and_return_record(tuple) ::
+          {:ok, Schema.t()} | {:error, Changeset.t()} | {:error, String.t()}
+  defp maybe_add_version_id_and_return_record(
+         {:ok, %{record: %{version_id: _} = record, version: %{id: version_id}}}
+       ),
+       do: {:ok, %{record | version_id: version_id}}
+
+  defp maybe_add_version_id_and_return_record({:ok, %{record: record}}), do: {:ok, record}
+
+  defp maybe_add_version_id_and_return_record({:error, _, %Ecto.Changeset{} = changeset, _}),
+    do: {:error, changeset}
+
+  defp maybe_add_version_id_and_return_record({:error, bad_op, bad_val, _changes}) do
+    {:error, "Transaction error in #{bad_op} with #{inspect(bad_val)}"}
+  end
+
+  defp maybe_add_version_id_and_return_record({:error, msg}) when is_binary(msg),
+    do: {:error, "Transaction error: #{msg}"}
+
+  defp maybe_add_version_id_and_return_record({:error, err}),
+    do: {:error, "Transaction error: #{inspect(err)}"}
+
+  defp maybe_add_version_id_and_return_record(ret), do: ret
 
   @doc """
   List all versions for a schema module, newest first.
@@ -125,31 +159,6 @@ defmodule Versioned do
 
     Changeset.change(struct(version_mod), params)
   end
-
-  # Handle the result of a `Repo.transaction` call.
-  @spec handle_transaction(tuple, keyword) ::
-          {:ok, any} | {:error, Changeset.t(), String.t(), atom()}
-  defp handle_transaction(val, opts)
-
-  defp handle_transaction({:ok, map}, opts) do
-    case Keyword.fetch(opts, :return) do
-      {:ok, key} -> {:ok, Map.get(map, key)}
-      :error -> {:ok, map}
-    end
-  end
-
-  defp handle_transaction({:error, _, %Ecto.Changeset{} = changeset, _}, _),
-    do: {:error, changeset}
-
-  defp handle_transaction({:error, bad_op, bad_val, _changes}, _) do
-    {:error, "Transaction error in #{bad_op} with #{inspect(bad_val)}"}
-  end
-
-  defp handle_transaction({:error, msg}, _) when is_binary(msg),
-    do: {:error, "Transaction error: #{msg}"}
-
-  defp handle_transaction({:error, err}, _),
-    do: {:error, "Transaction error: #{inspect(err)}"}
 
   # Get the configured Ecto.Repo module.
   @spec repo :: module
