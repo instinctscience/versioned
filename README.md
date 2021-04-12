@@ -24,7 +24,7 @@ def deps do
   [
     {:versioned,
       git: "https://github.com/instinctscience/versioned.git",
-      branch: "master"}
+      branch: "main"}
   ]
 end
 ```
