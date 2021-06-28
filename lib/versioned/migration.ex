@@ -25,8 +25,11 @@ defmodule Versioned.Migration do
     versions_block =
       lines
       |> Enum.reduce([], fn
-        {:add, m, [foreign_key, {:references, _m2, [_plural, opts]}]}, acc ->
-          [{:add, m, [foreign_key, Keyword.get(opts, :type, :uuid)]} | acc]
+        {:add, m, [foreign_key, {:references, _m2, [_plural, ref_opts]}]}, acc ->
+          [{:add, m, [foreign_key, Keyword.get(ref_opts, :type, :uuid)]} | acc]
+
+        {:add, m, [foreign_key, {:references, _m2, [_plural, ref_opts]}, field_opts]}, acc ->
+          [{:add, m, [foreign_key, Keyword.get(ref_opts, :type, :uuid), field_opts]} | acc]
 
         line, acc ->
           [line | acc]

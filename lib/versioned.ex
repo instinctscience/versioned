@@ -127,7 +127,7 @@ defmodule Versioned do
 
     Enum.reduce(opts, query, fn
       {:limit, limit}, query ->
-        from query, limit: ^limit
+        from(query, limit: ^limit)
 
       {_, _}, query ->
         query
