@@ -58,18 +58,6 @@ defmodule Versioned.Migration do
          {:add, m, [foreign_key, {:references, _m2, [plural, ref_opts]}, field_opts]},
          acc
        ) do
-    # line =
-    #   case Keyword.pop(ref_opts, :versioned) do
-    #     {true, o} ->
-    #       # fk = :"#{String.replace("#{foreign_key}", "_id", "_version_id")}"
-    #       fk = foreign_key
-    #       # {:add, m, [fk, {:references, [], [:"#{plural}_versions", o]}, field_opts]}
-    #       {:add, m, [fk, {:references, [], [plural, o]}, field_opts]}
-
-    #     {_, _} ->
-    #       type = Keyword.get(ref_opts, :type, :uuid)
-    #       {:add, m, [foreign_key, type, field_opts]}
-    #   end
     type = Keyword.get(ref_opts, :type, :uuid)
     line = {:add, m, [foreign_key, type, field_opts]}
 

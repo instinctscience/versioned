@@ -245,9 +245,7 @@ defmodule Versioned do
   Preload version associations. (They might be deleted.)
   """
   @spec preload(Ecto.Schema.t(), list) :: Ecto.Schema.t()
-  def preload(%mod{inserted_at: inserted_at} = ver_struct, preloads) do
-    entity = mod.entity_module()
-
+  def preload(%mod{} = ver_struct, preloads) do
     Enum.reduce(preloads, ver_struct, fn
       field, acc when is_atom(field) ->
         field_str = "#{field}"
@@ -274,16 +272,13 @@ defmodule Versioned do
 
           String.ends_with?(field_str, "_versions") ->
             entity_id = :"#{mod.entity_module().__versioned__(:source_singular)}_id"
-            assoc_singular = :"#{String.trim_trailing(field_str, "_versions")}"
-            assoc_singular_id = :"#{assoc_singular}_id"
-
-            %{queryable: assoc_mod} = mod.__schema__(:association, field)
+            assoc_singular_id = :"#{String.trim_trailing(field_str, "_versions")}_id"
+            %{queryable: assoc_ver_mod} = mod.__schema__(:association, field)
 
             versions =
               repo().all(
-                from assoc_ver in assoc_mod,
+                from assoc_ver in assoc_ver_mod,
                   distinct: ^assoc_singular_id,
-                  # distinct: [desc: :inserted_at, asc: :id],
                   where:
                     field(assoc_ver, ^entity_id) == ^Map.get(ver_struct, entity_id) and
                       assoc_ver.inserted_at <= ^ver_struct.inserted_at,
