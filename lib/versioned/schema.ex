@@ -1,6 +1,6 @@
 defmodule Versioned.Schema do
   @moduledoc """
-  Enhances Ecto.Schema modules to have track a full history of changes.
+  Enhances Ecto.Schema modules to track a full history of changes.
   """
   alias Versioned.Helpers
 
@@ -41,8 +41,9 @@ defmodule Versioned.Schema do
 
       @primary_key {:id, :binary_id, autogenerate: true}
       schema unquote(source) do
+        field(:version_id, :binary_id, virtual: true)
         timestamps(type: :utc_datetime_usec)
-        unquote(block)
+        unquote(remove_versioned_opts(block))
       end
 
       defmodule Version do
@@ -91,25 +92,78 @@ defmodule Versioned.Schema do
     |> Enum.reverse()
   end
 
+  # Take the original schema declaration ast and attach to the accumulator the
+  # corresponding version schema ast to use.
   @spec do_version_line(Macro.t(), Macro.t()) :: Macro.t()
-  defp do_version_line({:has_many, _m, [field, entity]}, acc) do
-    line_ast =
-      quote bind_quoted: [entity: entity, field: field] do
-        assoc_mod =
-          if function_exported?(entity, :__versioned__, 1),
-            do: Module.concat(entity, Version),
-            else: entity
+  # defp do_version_line({:belongs_to, m, [field, entity]}, acc),
+  #   do: do_version_line({:belongs_to, m, [field, entity, []]}, acc)
 
-        has_many(field, assoc_mod,
-          foreign_key: :"#{@source_singular}_id",
-          references: :"#{@source_singular}_id"
-        )
+  defp do_version_line({:belongs_to, _m, [field, entity, opts]}, acc) do
+    line =
+      quote do
+        belongs_to(:"#{unquote(field)}", unquote(entity), unquote(opts))
+        # belongs_to(:"#{unquote(field)}_version", unquote(version_entity(entity)), unquote(opts))
       end
 
-    [line_ast | acc]
+    # quote bind_quoted: [field: field, opts: opts] do
+    #   belongs_to(:"#{field}_version", unquote(version_entity(entity)), opts)
+    # end
+
+    [line | acc]
   end
 
-  defp do_version_line(line_ast, acc) do
-    [line_ast | acc]
+  defp do_version_line({:has_many, m, [field, entity]}, acc),
+    do: do_version_line({:has_many, m, [field, entity, []]}, acc)
+
+  defp do_version_line({:has_many, _m, [field, entity, field_opts]}, acc) do
+    line =
+      if field_opts[:versioned] do
+        quote do
+          has_many(
+            :"#{unquote(entity).__versioned__(:source_singular)}_versions",
+            Module.concat(unquote(entity), Version),
+            foreign_key: :"#{@source_singular}_id",
+            references: :"#{@source_singular}_id"
+          )
+        end
+      else
+        quote do
+          has_many(:"#{unquote(field)}", unquote(entity),
+            foreign_key: :"#{@source_singular}_id",
+            references: :"#{@source_singular}_id"
+          )
+        end
+      end
+
+    [line | acc]
+  end
+
+  defp do_version_line(line, acc) do
+    [line | acc]
+  end
+
+  # Convert ast for a module to the version module ast.
+  @spec version_entity(Macro.t()) :: Macro.t()
+  defp version_entity({:__aliases__, _m, [mod]}) do
+    {:__aliases__, [], [mod, :Version]}
+  end
+
+  defp version_entity(eh) do
+    raise "Not sure how to handle #{inspect(eh)}"
+  end
+
+  # Drop our options from the AST for Ecto.Schema.
+  @spec remove_versioned_opts(Macro.t()) :: Macro.t()
+  defp remove_versioned_opts({:__block__, top_m, lines}) do
+    lines =
+      Enum.map(lines, fn
+        {:has_many, m, [a, b, opts]} ->
+          {:has_many, m, [a, b, Keyword.delete(opts, :versioned)]}
+
+        other ->
+          other
+      end)
+
+    {:__block__, top_m, lines}
   end
 end

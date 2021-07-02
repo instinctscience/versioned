@@ -1,17 +1,18 @@
 defmodule Versioned.Test.Car do
   @moduledoc false
   use Versioned.Schema
-  alias Ecto.Changeset
-  alias Versioned.Test.PassengerPerson
+  alias Versioned.Test.Person
+  import Ecto.Changeset
 
   versioned_schema "cars" do
     field(:name, :string)
-    has_many(:passenger_people, PassengerPerson)
+    has_many(:people, Person, versioned: true)
   end
 
   def changeset(car_or_changeset, params) do
     car_or_changeset
-    |> Changeset.cast(params, [:name])
-    |> Changeset.validate_required([:name])
+    |> cast(params, [:name])
+    |> validate_required([:name])
+    |> cast_assoc(:people)
   end
 end
