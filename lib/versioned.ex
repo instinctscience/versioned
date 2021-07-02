@@ -209,4 +209,79 @@ defmodule Versioned do
   """
   @spec versioned?(module) :: boolean
   def versioned?(mod), do: function_exported?(mod, :__versioned__, 1)
+
+  @doc """
+  Build the query to populate the `:version_id` virtual field on a versioned
+  entity.
+
+  `query` may be any existing base query for the entity which is versioned.
+  `mod`, if defined, should be the entity module name itself. If not defined,
+  `query` must be this module name and not any type of query.
+  """
+  @spec with_versions(Ecto.Queryable.t(), Ecto.Schema.t() | nil) :: Ecto.Query.t()
+  def with_versions(query, mod \\ nil) do
+    mod = mod || query
+    ver_mod = Module.concat(mod, Version)
+    singular_id = :"#{mod.__versioned__(:source_singular)}_id"
+
+    versions =
+      from ver_mod,
+        distinct: ^singular_id,
+        order_by: {:desc, :inserted_at}
+
+    from q in query,
+      join: v in subquery(versions),
+      on: q.id == field(v, ^singular_id),
+      select_merge: %{version_id: v.id}
+  end
+
+  @doc """
+  Preload version associations. (They might be deleted.)
+  """
+  @spec preload(Ecto.Schema.t(), list) :: Ecto.Schema.t()
+  def preload(%mod{inserted_at: inserted_at} = ver_struct, preloads) do
+    entity = mod.entity_module()
+
+    Enum.reduce(preloads, ver_struct, fn
+      field, acc when is_atom(field) ->
+        field_str = "#{field}"
+
+        cond do
+          String.ends_with?(field_str, "_version") ->
+            assoc_singular = :"#{String.trim_trailing(field_str, "_version")}"
+            assoc_singular_id = :"#{assoc_singular}_id"
+            assoc_id = Map.get(ver_struct, assoc_singular_id)
+            %{queryable: assoc_mod} = mod.__schema__(:association, assoc_singular)
+            assoc_ver_mod = Module.concat(assoc_mod, Version)
+
+            ver =
+              repo().one(
+                from assoc_ver in assoc_ver_mod,
+                  where:
+                    field(assoc_ver, ^assoc_singular_id) == ^assoc_id and
+                      assoc_ver.inserted_at <= ^ver_struct.inserted_at,
+                  order_by: {:desc, :inserted_at},
+                  limit: 1
+              )
+
+            %{acc | field => ver}
+
+          String.ends_with?(field_str, "_versions") ->
+            entity_id = :"#{mod.entity_module().__versioned__(:source_singular)}_id"
+            assoc_singular = :"#{String.trim_trailing(field_str, "_versions")}"
+            assoc_singular_id = :"#{assoc_singular}_id"
+            id = ver_struct.person_id
+            %{queryable: assoc_mod} = mod.__schema__(:association, field)
+            |> IO.inspect(label: "iiho")
+            # assoc_ver_mod = Module.concat(assoc_mod, Version)
+            repo().all(
+              from assoc_ver in assoc_mod,
+                distinct: ^assoc_singular_id,
+                # distinct: [desc: :inserted_at, asc: :id],
+                where: field(assoc_ver, ^entity_id) == ^Map.get(ver_struct, entity_id),
+                order_by: {:desc, :inserted_at}
+            )
+        end
+    end)
+  end
 end

@@ -51,10 +51,7 @@ defmodule VersionedTest do
 
     test "with related record, deleting it first" do
       {:ok, %{id: car_id} = car} = Versioned.insert(%Car{name: "Toad"})
-    |> IO.inspect(label: "WhAO")
-
-      {:ok, %{id: person_id} = person} =
-        Versioned.insert(%Person{car_id: car_id, name: "Wendy"})
+      {:ok, %{id: person_id} = person} = Versioned.insert(%Person{car_id: car_id, name: "Wendy"})
 
       # Notice that we don't raise a ContstraintError with the version records
       # pointing at these because we haven't made a db-level constraint.
@@ -120,13 +117,14 @@ defmodule VersionedTest do
       name: "Mustang",
       people: [%{name: "Fred", hobbies: [%{name: "Go-Kart"}, %{name: "Strudal"}]}]
     }
-    IO.inspect(%Person.Version{})
 
     {:ok, %{people: [%{id: fred_id}]}} = %Car{} |> Car.changeset(params) |> Versioned.insert()
 
-    # Versioned.history(Car, car.id)
-    [p] = Versioned.history(Person, fred_id)
-    Repo.preload(p, [:car, :hobby_versions])
+    assert [p] = Versioned.history(Person, fred_id)
+    |> IO.inspect(label: "peee")
+
+    # Versioned.preload(p, [:car_version, :hobby_versions])
+    Versioned.preload(p, [:hobby_versions])
     |> IO.inspect(label: "")
   end
 end

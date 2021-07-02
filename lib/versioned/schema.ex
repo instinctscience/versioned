@@ -102,6 +102,7 @@ defmodule Versioned.Schema do
     line =
       quote do
         belongs_to(:"#{unquote(field)}", unquote(entity), unquote(opts))
+        field(:"#{unquote(field)}_version", :map, virtual: true)
         # belongs_to(:"#{unquote(field)}_version", unquote(version_entity(entity)), unquote(opts))
       end
 
