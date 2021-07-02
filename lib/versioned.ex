@@ -141,6 +141,11 @@ defmodule Versioned do
   # Pass option `deleted: true` to mark as deleted.
   @spec build_version(Schema.t(), keyword) :: Changeset.t()
   defp build_version(%mod{} = struct, opts \\ []) do
+    # This inserted_at is used for main record and all child records so that
+    # history can be fetched reliably since children would be inserted ~1/100th
+    # of a second later.
+    opts = Keyword.put(opts, :inserted_at, DateTime.utc_now())
+
     mod
     |> Module.concat(Version)
     |> struct()
@@ -157,6 +162,7 @@ defmodule Versioned do
       |> Map.new(&{&1, Map.get(struct, &1)})
       |> Map.put(:"#{mod.__versioned__(:source_singular)}_id", struct.id)
       |> Map.put(:is_deleted, Keyword.get(opts, :deleted, false))
+      |> Map.put(:inserted_at, opts[:inserted_at])
 
     Enum.reduce(mod.__schema__(:associations), params, fn assoc, acc ->
       child = Map.get(struct, assoc)
@@ -254,7 +260,7 @@ defmodule Versioned do
             %{queryable: assoc_mod} = mod.__schema__(:association, assoc_singular)
             assoc_ver_mod = Module.concat(assoc_mod, Version)
 
-            ver =
+            version =
               repo().one(
                 from assoc_ver in assoc_ver_mod,
                   where:
@@ -264,23 +270,30 @@ defmodule Versioned do
                   limit: 1
               )
 
-            %{acc | field => ver}
+            %{acc | field => version}
 
           String.ends_with?(field_str, "_versions") ->
             entity_id = :"#{mod.entity_module().__versioned__(:source_singular)}_id"
             assoc_singular = :"#{String.trim_trailing(field_str, "_versions")}"
             assoc_singular_id = :"#{assoc_singular}_id"
-            id = ver_struct.person_id
+
             %{queryable: assoc_mod} = mod.__schema__(:association, field)
-            |> IO.inspect(label: "iiho")
-            # assoc_ver_mod = Module.concat(assoc_mod, Version)
-            repo().all(
-              from assoc_ver in assoc_mod,
-                distinct: ^assoc_singular_id,
-                # distinct: [desc: :inserted_at, asc: :id],
-                where: field(assoc_ver, ^entity_id) == ^Map.get(ver_struct, entity_id),
-                order_by: {:desc, :inserted_at}
-            )
+
+            versions =
+              repo().all(
+                from assoc_ver in assoc_mod,
+                  distinct: ^assoc_singular_id,
+                  # distinct: [desc: :inserted_at, asc: :id],
+                  where:
+                    field(assoc_ver, ^entity_id) == ^Map.get(ver_struct, entity_id) and
+                      assoc_ver.inserted_at <= ^ver_struct.inserted_at,
+                  order_by: {:desc, :inserted_at}
+              )
+
+            %{acc | field => versions}
+
+          true ->
+            repo().preload(acc, field)
         end
     end)
   end

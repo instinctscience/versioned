@@ -95,20 +95,15 @@ defmodule Versioned.Schema do
   # Take the original schema declaration ast and attach to the accumulator the
   # corresponding version schema ast to use.
   @spec do_version_line(Macro.t(), Macro.t()) :: Macro.t()
-  # defp do_version_line({:belongs_to, m, [field, entity]}, acc),
-  #   do: do_version_line({:belongs_to, m, [field, entity, []]}, acc)
+  defp do_version_line({:belongs_to, m, [field, entity]}, acc),
+    do: do_version_line({:belongs_to, m, [field, entity, []]}, acc)
 
   defp do_version_line({:belongs_to, _m, [field, entity, opts]}, acc) do
     line =
       quote do
         belongs_to(:"#{unquote(field)}", unquote(entity), unquote(opts))
         field(:"#{unquote(field)}_version", :map, virtual: true)
-        # belongs_to(:"#{unquote(field)}_version", unquote(version_entity(entity)), unquote(opts))
       end
-
-    # quote bind_quoted: [field: field, opts: opts] do
-    #   belongs_to(:"#{field}_version", unquote(version_entity(entity)), opts)
-    # end
 
     [line | acc]
   end
@@ -141,16 +136,6 @@ defmodule Versioned.Schema do
 
   defp do_version_line(line, acc) do
     [line | acc]
-  end
-
-  # Convert ast for a module to the version module ast.
-  @spec version_entity(Macro.t()) :: Macro.t()
-  defp version_entity({:__aliases__, _m, [mod]}) do
-    {:__aliases__, [], [mod, :Version]}
-  end
-
-  defp version_entity(eh) do
-    raise "Not sure how to handle #{inspect(eh)}"
   end
 
   # Drop our options from the AST for Ecto.Schema.

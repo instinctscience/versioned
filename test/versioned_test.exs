@@ -1,7 +1,7 @@
 defmodule VersionedTest do
   use Versioned.TestCase
   import Ecto.Query
-  alias Versioned.Test.{Car, Person}
+  alias Versioned.Test.{Car, Hobby, Person}
   alias Versioned.Test.Repo
 
   test "basic functionality" do
@@ -112,19 +112,31 @@ defmodule VersionedTest do
     assert Enum.any?(rows, &(&1 == ["cars", "color", "character varying"]))
   end
 
-  test "simultaneous inserts" do
+  test "simultaneous inserts, preload" do
     params = %{
       name: "Mustang",
       people: [%{name: "Fred", hobbies: [%{name: "Go-Kart"}, %{name: "Strudal"}]}]
     }
 
-    {:ok, %{people: [%{id: fred_id}]}} = %Car{} |> Car.changeset(params) |> Versioned.insert()
+    {:ok, %{id: car_id, people: [%{id: fred_id}]}} =
+      %Car{} |> Car.changeset(params) |> Versioned.insert()
+
+    {:ok, _} =
+      Car |> Repo.get(car_id) |> Car.changeset(%{name: "tooo neww"}) |> Versioned.update()
+
+    {:ok, _} = Versioned.insert(%Hobby{person_id: fred_id, name: "too new"})
 
     assert [p] = Versioned.history(Person, fred_id)
-    |> IO.inspect(label: "peee")
 
-    # Versioned.preload(p, [:car_version, :hobby_versions])
-    Versioned.preload(p, [:hobby_versions])
-    |> IO.inspect(label: "")
+    assert %{
+             car_version: %{name: "Mustang"},
+             hobby_versions: [_, _] = hobby_versions,
+             name: "Fred"
+           } = Versioned.preload(p, [:car_version, :hobby_versions])
+
+    # (Order is uncertain.)
+    for hob <- ~w(Go-Kart Strudal) do
+      assert Enum.any?(hobby_versions, &(&1.name == hob))
+    end
   end
 end
