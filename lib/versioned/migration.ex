@@ -55,9 +55,12 @@ defmodule Versioned.Migration do
   end
 
   defp do_version_line(
-         {:add, m, [foreign_key, {:references, _m2, [plural, ref_opts]}, field_opts]},
+         {:add, m, [foreign_key, {:references, _m2, [_plural, ref_opts]}, field_opts]},
          acc
        ) do
+    # Drop reference in favor if plain ole field of the same type.
+    # This way, referenced records can be deleted while the referencing version
+    # records remain intact.
     type = Keyword.get(ref_opts, :type, :uuid)
     line = {:add, m, [foreign_key, type, field_opts]}
 
