@@ -19,7 +19,12 @@ defmodule Versioned do
 
     Multi.new()
     |> Multi.insert(:record, cs, opts)
-    |> Multi.insert(:version, &build_version(&1.record), opts)
+    |> Multi.run(:version, fn repo, %{record: record} ->
+      case build_version(record) do
+        nil -> {:ok, nil}
+        changeset -> repo.insert(changeset)
+      end
+    end)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
   end
@@ -139,54 +144,65 @@ defmodule Versioned do
 
   # Create a `version_mod` struct to insert from a new instance of the record.
   # Pass option `deleted: true` to mark as deleted.
-  @spec build_version(Schema.t(), keyword) :: Changeset.t()
+  @spec build_version(Schema.t(), keyword) :: Changeset.t() | nil
   defp build_version(%mod{} = struct, opts \\ []) do
     # This inserted_at is used for main record and all child records so that
     # history can be fetched reliably since children would be inserted ~1/100th
     # of a second later.
     opts = Keyword.put(opts, :inserted_at, DateTime.utc_now())
 
-    mod
-    |> Module.concat(Version)
-    |> struct()
-    |> Changeset.change(build_params(struct, opts))
+    with params when params != nil <- build_params(struct, opts) do
+      mod
+      |> Module.concat(Version)
+      |> struct()
+      |> Changeset.change(params)
+    end
   end
 
-  @spec build_params(Schema.t(), keyword) :: map
+  @spec build_params(Schema.t(), keyword) :: map | nil
   defp build_params(%mod{} = struct, opts) do
-    params =
-      :fields
-      |> mod.__schema__()
-      |> Enum.reject(&(&1 in [:id, :inserted_at, :updated_at]))
-      |> Enum.filter(&(&1 in Module.concat(mod, Version).__schema__(:fields)))
-      |> Map.new(&{&1, Map.get(struct, &1)})
-      |> Map.put(:"#{mod.__versioned__(:source_singular)}_id", struct.id)
-      |> Map.put(:is_deleted, Keyword.get(opts, :deleted, false))
-      |> Map.put(:inserted_at, opts[:inserted_at])
+    if versioned?(mod) do
+      params =
+        :fields
+        |> mod.__schema__()
+        |> Enum.reject(&(&1 in [:id, :inserted_at, :updated_at]))
+        |> Enum.filter(&(&1 in Module.concat(mod, Version).__schema__(:fields)))
+        |> Map.new(&{&1, Map.get(struct, &1)})
+        |> Map.put(:"#{mod.__versioned__(:source_singular)}_id", struct.id)
+        |> Map.put(:is_deleted, Keyword.get(opts, :deleted, false))
+        |> Map.put(:inserted_at, opts[:inserted_at])
 
-    Enum.reduce(mod.__schema__(:associations), params, fn assoc, acc ->
-      child = Map.get(struct, assoc)
-      assoc_info = mod.__schema__(:association, assoc)
+      Enum.reduce(mod.__schema__(:associations), params, fn assoc, acc ->
+        child = Map.get(struct, assoc)
+        assoc_info = mod.__schema__(:association, assoc)
 
-      case build_assoc_params(assoc_info, child, opts) do
-        nil ->
-          acc
+        case build_assoc_params(assoc_info, child, opts) do
+          nil ->
+            acc
 
-        p ->
-          if versioned?(assoc_info.queryable) do
-            key = assoc_info.owner.__versioned__(:has_many_field, assoc)
-            Map.put(acc, key, p)
-          else
-            Map.put(acc, assoc, p)
-          end
-      end
-    end)
+          p ->
+            if versioned?(assoc_info.queryable) do
+              key = assoc_info.owner.__versioned__(:has_many_field, assoc)
+              Map.put(acc, key, p)
+            else
+              Map.put(acc, assoc, p)
+            end
+        end
+      end)
+    else
+      nil
+    end
   end
 
   @spec build_assoc_params(Ecto.Association.t(), Schema.t() | [Schema.t()], keyword) :: list | nil
   defp build_assoc_params(%Ecto.Association.Has{cardinality: :many}, data, opts)
        when is_list(data) do
-    Enum.map(data, &build_params(&1, opts))
+    Enum.reduce(data, [], fn record, acc ->
+      case build_params(record, opts) do
+        nil -> acc
+        params -> [params | acc]
+      end
+    end)
   end
 
   defp build_assoc_params(_, %Ecto.Association.NotLoaded{}, _) do
