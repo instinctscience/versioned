@@ -115,7 +115,7 @@ defmodule VersionedTest do
   test "simultaneous inserts, preload" do
     params = %{
       name: "Mustang",
-      people: [%{name: "Fred", hobbies: [%{name: "Go-Kart"}, %{name: "Strudal"}]}]
+      people: [%{name: "Fred", fancy_hobbies: [%{name: "Go-Kart"}, %{name: "Strudal"}]}]
     }
 
     {:ok, %{id: car_id, people: [%{id: fred_id}]}} =
@@ -130,9 +130,9 @@ defmodule VersionedTest do
 
     assert %{
              car_version: %{name: "Mustang"},
-             hobby_versions: [_, _] = hobby_versions,
+             fancy_hobby_versions: [_, _] = hobby_versions,
              name: "Fred"
-           } = Versioned.preload(p, [:car_version, :hobby_versions])
+           } = Versioned.preload(p, [:car_version, :fancy_hobby_versions])
 
     # (Order is uncertain.)
     for hob <- ~w(Go-Kart Strudal) do

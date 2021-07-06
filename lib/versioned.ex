@@ -174,8 +174,8 @@ defmodule Versioned do
 
         p ->
           if versioned?(assoc_info.queryable) do
-            singular = assoc_info.queryable.__versioned__(:source_singular)
-            Map.put(acc, :"#{singular}_versions", p)
+            key = assoc_info.owner.__versioned__(:has_many_field, assoc)
+            Map.put(acc, key, p)
           else
             Map.put(acc, assoc, p)
           end
@@ -272,8 +272,9 @@ defmodule Versioned do
 
           String.ends_with?(field_str, "_versions") ->
             entity_id = :"#{mod.entity_module().__versioned__(:source_singular)}_id"
-            assoc_singular_id = :"#{String.trim_trailing(field_str, "_versions")}_id"
             %{queryable: assoc_ver_mod} = mod.__schema__(:association, field)
+            assoc_mod = assoc_ver_mod.entity_module()
+            assoc_singular_id = :"#{assoc_mod.__versioned__(:source_singular)}_id"
 
             versions =
               repo().all(

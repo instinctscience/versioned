@@ -32,12 +32,20 @@ defmodule Versioned.Schema do
 
       * `:entity_fk` - `:#{@source_singular}_id` will be returned, the foreign
         key column on the versions table which points at the real record.
-      * `:source_singular` - the string `"#{@source_singular}"` will be
-        returned.
+      * `:source_singular` - String `"#{@source_singular}"` will be returned.
+      * `:has_many_fields` - List of field name atoms which are has_many.
       """
-      @spec __versioned__(:entity_fk | :source_singular) :: atom | String.t()
+      @spec __versioned__(:entity_fk | :source_singular) :: atom | [atom] | String.t()
       def __versioned__(:entity_fk), do: :"#{@source_singular}_id"
       def __versioned__(:source_singular), do: @source_singular
+      def __versioned__(:has_many_fields), do: __MODULE__.Version.has_many_fields()
+
+      @doc """
+      Given the has_many `field` name, get the has_many field name for the
+      versioned schema.
+      """
+      @spec __versioned__(:has_many_field, atom) :: atom
+      def __versioned__(:has_many_field, field), do: __MODULE__.Version.has_many_field(field)
 
       @primary_key {:id, :binary_id, autogenerate: true}
       schema unquote(source) do
@@ -50,7 +58,10 @@ defmodule Versioned.Schema do
         @moduledoc "A single version in history."
         use Ecto.Schema, @ecto_opts
 
+        @before_compile {unquote(__MODULE__), :version_before_compile}
         @source_singular Module.get_attribute(unquote(mod), :source_singular)
+
+        Module.register_attribute(__MODULE__, :has_many_fields, accumulate: true)
 
         # Set @foreign_key_type if the main module did.
         fkt = Module.get_attribute(unquote(mod), :foreign_key_type)
@@ -79,6 +90,22 @@ defmodule Versioned.Schema do
         @spec entity_module :: module
         def entity_module, do: unquote(mod)
       end
+    end
+  end
+
+  # This ast is added to the end of the Version module.
+  defmacro version_before_compile(_env) do
+    quote do
+      @doc "List of field name atoms in the main schema which are has_many."
+      @spec has_many_fields :: [atom]
+      def has_many_fields, do: Keyword.keys(@has_many_fields)
+
+      @doc """
+      Given the has_many `field` name in the main schema, get the has_many field
+      name for the versioned schema.
+      """
+      @spec has_many_field(atom) :: atom
+      def has_many_field(field), do: @has_many_fields[field]
     end
   end
 
@@ -112,23 +139,41 @@ defmodule Versioned.Schema do
     do: do_version_line({:has_many, m, [field, entity, []]}, acc)
 
   defp do_version_line({:has_many, _m, [field, entity, field_opts]}, acc) do
+    do_has_many = fn key ->
+      quote do
+        @has_many_fields {unquote(field), unquote(key)}
+
+        foreign_key = unquote(field_opts[:foreign_key]) || :"#{@source_singular}_id"
+
+        has_many(
+          unquote(key),
+          Module.concat(unquote(entity), Version),
+          foreign_key: foreign_key,
+          references: :"#{@source_singular}_id"
+        )
+      end
+    end
+
     line =
-      if field_opts[:versioned] do
-        quote do
-          has_many(
-            :"#{unquote(entity).__versioned__(:source_singular)}_versions",
-            Module.concat(unquote(entity), Version),
-            foreign_key: :"#{@source_singular}_id",
-            references: :"#{@source_singular}_id"
-          )
-        end
-      else
-        quote do
-          has_many(:"#{unquote(field)}", unquote(entity),
-            foreign_key: :"#{@source_singular}_id",
-            references: :"#{@source_singular}_id"
-          )
-        end
+      case field_opts[:versioned] do
+        # Field is not versioned.
+        v when v in [nil, false] ->
+          quote do
+            @has_many_fields {unquote(field), unquote(field)}
+
+            has_many(:"#{unquote(field)}", unquote(entity),
+              foreign_key: :"#{@source_singular}_id",
+              references: :"#{@source_singular}_id"
+            )
+          end
+
+        # has_many declaration used `versioned: true` -- just use an obvious name.
+        true ->
+          do_has_many.(quote do: :"#{unquote(entity).__versioned__(:source_singular)}_versions")
+
+        # `:versioned` option used a proper key name -- use that.
+        versions_key ->
+          do_has_many.(versions_key)
       end
 
     [line | acc]
