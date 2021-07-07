@@ -9,4 +9,4 @@ config :versioned, Versioned.Test.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   priv: "test/support/priv"
 
-config :logger, level: :warn
+config :logger, level: :info

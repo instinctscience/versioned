@@ -29,7 +29,7 @@ defmodule Versioned.MixProject do
     [
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
-      {:ecto_sql, "~> 3.3", only: [:test]},
+      {:ecto_sql, "~> 3.3"},
       {:mix_test_watch, "~> 1.0", only: :dev, runtime: false},
       {:postgrex, "~> 0.15", only: [:test]}
     ]

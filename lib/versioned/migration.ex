@@ -15,8 +15,8 @@ defmodule Versioned.Migration do
   Create a table whose data is versioned by also creating a secondary table
   with the immutable, append-only history.
   """
-  defmacro create_versioned_table(name, opts \\ [], do: block) do
-    name_singular = Keyword.get(opts, :singular, String.trim_trailing("#{name}", "s"))
+  defmacro create_versioned_table(name_plural, opts \\ [], do: block) do
+    name_singular = Keyword.get(opts, :singular, String.trim_trailing("#{name_plural}", "s"))
     {:__block__, mid, lines} = Helpers.normalize_block(block)
 
     # For versions table, rewrite references to avoid database constraints:
@@ -24,27 +24,18 @@ defmodule Versioned.Migration do
     # key to be affected.
     versions_block =
       lines
-      |> Enum.reduce([], fn
-        {:add, m, [foreign_key, {:references, _m2, [_plural, ref_opts]}]}, acc ->
-          [{:add, m, [foreign_key, Keyword.get(ref_opts, :type, :uuid)]} | acc]
-
-        {:add, m, [foreign_key, {:references, _m2, [_plural, ref_opts]}, field_opts]}, acc ->
-          [{:add, m, [foreign_key, Keyword.get(ref_opts, :type, :uuid), field_opts]} | acc]
-
-        line, acc ->
-          [line | acc]
-      end)
+      |> Enum.reduce([], &do_version_line/2)
       |> Enum.reverse()
       |> (fn lines -> {:__block__, mid, lines} end).()
 
     quote do
-      create table(unquote(name), primary_key: false) do
+      create table(unquote(name_plural), primary_key: false) do
         add(:id, :uuid, primary_key: true)
         timestamps(type: :utc_datetime_usec)
         unquote(block)
       end
 
-      create table(:"#{unquote(name)}_versions", primary_key: false) do
+      create table(:"#{unquote(name_plural)}_versions", primary_key: false) do
         add(:id, :uuid, primary_key: true)
         add(:is_deleted, :boolean, null: false)
         add(:"#{unquote(name_singular)}_id", :uuid, null: false)
@@ -52,8 +43,32 @@ defmodule Versioned.Migration do
         unquote(versions_block)
       end
 
-      create(index(:"#{unquote(name)}_versions", :"#{unquote(name_singular)}_id"))
+      create(index(:"#{unquote(name_plural)}_versions", :"#{unquote(name_singular)}_id"))
     end
+  end
+
+  # Take the original migration ast and attach to the accumulator the
+  # corresponding ast to use for the version table.
+  @spec do_version_line(Macro.t(), Macro.t()) :: Macro.t()
+  defp do_version_line({:add, a, [b, {:references, _, _} = tup]}, acc) do
+    do_version_line({:add, a, [b, tup, []]}, acc)
+  end
+
+  defp do_version_line(
+         {:add, m, [foreign_key, {:references, _m2, [_plural, ref_opts]}, field_opts]},
+         acc
+       ) do
+    # Drop reference in favor if plain ole field of the same type.
+    # This way, referenced records can be deleted while the referencing version
+    # records remain intact.
+    type = Keyword.get(ref_opts, :type, :uuid)
+    line = {:add, m, [foreign_key, type, field_opts]}
+
+    [line | acc]
+  end
+
+  defp do_version_line(line, acc) do
+    [line | acc]
   end
 
   @doc "Add a new column to both the main table and the versions table."

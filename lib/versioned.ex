@@ -16,12 +16,15 @@ defmodule Versioned do
           | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def insert(struct_or_changeset, opts \\ []) do
     cs = Changeset.change(struct_or_changeset)
-    mod = cs.data.__struct__
-    version_mod = Module.concat(mod, Version)
 
     Multi.new()
     |> Multi.insert(:record, cs, opts)
-    |> Multi.insert(:version, &build_version(version_mod, &1.record), opts)
+    |> Multi.run(:version, fn repo, %{record: record} ->
+      case build_version(record) do
+        nil -> {:ok, nil}
+        changeset -> repo.insert(changeset)
+      end
+    end)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
   end
@@ -38,11 +41,9 @@ defmodule Versioned do
           | {:error, any()}
           | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def update(changeset, opts \\ []) do
-    version_mod = Module.concat(changeset.data.__struct__, Version)
-
     Multi.new()
     |> Multi.update(:record, changeset, opts)
-    |> Multi.insert(:version, &build_version(version_mod, &1.record), opts)
+    |> Multi.insert(:version, &build_version(&1.record), opts)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
   end
@@ -56,11 +57,10 @@ defmodule Versioned do
           | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def delete(struct_or_changeset, opts \\ []) do
     cs = Changeset.change(struct_or_changeset)
-    version_mod = Module.concat(cs.data.__struct__, Version)
 
     Multi.new()
     |> Multi.delete(:record, cs, opts)
-    |> Multi.insert(:version, &build_version(version_mod, &1.record, deleted: true), opts)
+    |> Multi.insert(:version, &build_version(&1.record, deleted: true), opts)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
   end
@@ -126,11 +126,8 @@ defmodule Versioned do
     query = from(version_mod, where: ^[{fk, id}], order_by: [desc: :inserted_at])
 
     Enum.reduce(opts, query, fn
-      {:limit, limit}, query ->
-        from(query, limit: ^limit)
-
-      {_, _}, query ->
-        query
+      {:limit, limit}, query -> from(query, limit: ^limit)
+      {_, _}, query -> query
     end)
   end
 
@@ -147,17 +144,73 @@ defmodule Versioned do
 
   # Create a `version_mod` struct to insert from a new instance of the record.
   # Pass option `deleted: true` to mark as deleted.
-  @spec build_version(module, Schema.t(), keyword) :: Changeset.t()
-  defp build_version(version_mod, %mod{} = struct, opts \\ []) do
-    params =
-      :fields
-      |> mod.__schema__()
-      |> Enum.reject(&(&1 in [:id, :inserted_at, :updated_at]))
-      |> Map.new(&{&1, Map.get(struct, &1)})
-      |> Map.put(:"#{mod.__versioned__(:source_singular)}_id", struct.id)
-      |> Map.put(:is_deleted, Keyword.get(opts, :deleted, false))
+  @spec build_version(Schema.t(), keyword) :: Changeset.t() | nil
+  defp build_version(%mod{} = struct, opts \\ []) do
+    # This inserted_at is used for main record and all child records so that
+    # history can be fetched reliably since children would be inserted ~1/100th
+    # of a second later.
+    opts = Keyword.put(opts, :inserted_at, DateTime.utc_now())
 
-    Changeset.change(struct(version_mod), params)
+    with params when params != nil <- build_params(struct, opts) do
+      mod
+      |> Module.concat(Version)
+      |> struct()
+      |> Changeset.change(params)
+    end
+  end
+
+  @spec build_params(Schema.t(), keyword) :: map | nil
+  defp build_params(%mod{} = struct, opts) do
+    if versioned?(mod) do
+      params =
+        :fields
+        |> mod.__schema__()
+        |> Enum.reject(&(&1 in [:id, :inserted_at, :updated_at]))
+        |> Enum.filter(&(&1 in Module.concat(mod, Version).__schema__(:fields)))
+        |> Map.new(&{&1, Map.get(struct, &1)})
+        |> Map.put(:"#{mod.__versioned__(:source_singular)}_id", struct.id)
+        |> Map.put(:is_deleted, Keyword.get(opts, :deleted, false))
+        |> Map.put(:inserted_at, opts[:inserted_at])
+
+      Enum.reduce(mod.__schema__(:associations), params, fn assoc, acc ->
+        child = Map.get(struct, assoc)
+        assoc_info = mod.__schema__(:association, assoc)
+
+        case build_assoc_params(assoc_info, child, opts) do
+          nil ->
+            acc
+
+          p ->
+            if versioned?(assoc_info.queryable) do
+              key = assoc_info.owner.__versioned__(:has_many_field, assoc)
+              Map.put(acc, key, p)
+            else
+              Map.put(acc, assoc, p)
+            end
+        end
+      end)
+    else
+      nil
+    end
+  end
+
+  @spec build_assoc_params(Ecto.Association.t(), Schema.t() | [Schema.t()], keyword) :: list | nil
+  defp build_assoc_params(%Ecto.Association.Has{cardinality: :many}, data, opts)
+       when is_list(data) do
+    Enum.reduce(data, [], fn record, acc ->
+      case build_params(record, opts) do
+        nil -> acc
+        params -> [params | acc]
+      end
+    end)
+  end
+
+  defp build_assoc_params(_, %Ecto.Association.NotLoaded{}, _) do
+    nil
+  end
+
+  defp build_assoc_params(ecto_assoc, %mod{}, _) do
+    raise "No assoc handler while processing #{inspect(mod)}: #{inspect(ecto_assoc)}"
   end
 
   # Get the configured Ecto.Repo module.
@@ -169,4 +222,91 @@ defmodule Versioned do
   @doc "Get the version module from the subject module."
   @spec version_mod(module) :: module
   def version_mod(module), do: Module.concat(module, Version)
+
+  @doc """
+  True if the Ecto.Schema module is versioned.
+
+  This means there is a corresponding Ecto.Schema module with an extra
+  ".Version" on the end.
+  """
+  @spec versioned?(module) :: boolean
+  def versioned?(mod), do: function_exported?(mod, :__versioned__, 1)
+
+  @doc """
+  Build the query to populate the `:version_id` virtual field on a versioned
+  entity.
+
+  `query` may be any existing base query for the entity which is versioned.
+  `mod`, if defined, should be the entity module name itself. If not defined,
+  `query` must be this module name and not any type of query.
+  """
+  @spec with_versions(Ecto.Queryable.t(), Ecto.Schema.t() | nil) :: Ecto.Query.t()
+  def with_versions(query, mod \\ nil) do
+    mod = mod || query
+    ver_mod = Module.concat(mod, Version)
+    singular_id = :"#{mod.__versioned__(:source_singular)}_id"
+
+    versions =
+      from ver_mod,
+        distinct: ^singular_id,
+        order_by: {:desc, :inserted_at}
+
+    from q in query,
+      join: v in subquery(versions),
+      on: q.id == field(v, ^singular_id),
+      select_merge: %{version_id: v.id}
+  end
+
+  @doc """
+  Preload version associations. (They might be deleted.)
+  """
+  @spec preload(Ecto.Schema.t(), list) :: Ecto.Schema.t()
+  def preload(%mod{} = ver_struct, preloads) do
+    Enum.reduce(preloads, ver_struct, fn
+      field, acc when is_atom(field) ->
+        field_str = "#{field}"
+
+        cond do
+          String.ends_with?(field_str, "_version") ->
+            assoc_singular = :"#{String.trim_trailing(field_str, "_version")}"
+            assoc_singular_id = :"#{assoc_singular}_id"
+            assoc_id = Map.get(ver_struct, assoc_singular_id)
+            %{queryable: assoc_mod} = mod.__schema__(:association, assoc_singular)
+            assoc_ver_mod = Module.concat(assoc_mod, Version)
+
+            version =
+              repo().one(
+                from assoc_ver in assoc_ver_mod,
+                  where:
+                    field(assoc_ver, ^assoc_singular_id) == ^assoc_id and
+                      assoc_ver.inserted_at <= ^ver_struct.inserted_at,
+                  order_by: {:desc, :inserted_at},
+                  limit: 1
+              )
+
+            %{acc | field => version}
+
+          String.ends_with?(field_str, "_versions") ->
+            entity_id = :"#{mod.entity_module().__versioned__(:source_singular)}_id"
+            %{queryable: assoc_ver_mod} = mod.__schema__(:association, field)
+            assoc_mod = assoc_ver_mod.entity_module()
+            assoc_singular_id = :"#{assoc_mod.__versioned__(:source_singular)}_id"
+
+            versions =
+              repo().all(
+                from assoc_ver in assoc_ver_mod,
+                  distinct: ^assoc_singular_id,
+                  where:
+                    field(assoc_ver, ^entity_id) == ^Map.get(ver_struct, entity_id) and
+                      assoc_ver.inserted_at <= ^ver_struct.inserted_at,
+                  order_by: {:desc, :inserted_at}
+              )
+
+            %{acc | field => versions}
+
+          true ->
+            repo().preload(acc, field)
+        end
+    end)
+  end
 end

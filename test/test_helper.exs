@@ -1,3 +1,5 @@
+require Logger
+
 ExUnit.start()
 
 # Ensure that symlink to custom ecto priv directory exists
@@ -7,6 +9,8 @@ File.rm_rf(target)
 File.mkdir_p(target)
 File.rmdir(target)
 :ok = :file.make_symlink(Path.expand(source), target)
+
+Logger.info("Running migrations...")
 
 Mix.Task.run("ecto.drop", ~w(--quiet))
 Mix.Task.run("ecto.create", ~w(--quiet))
