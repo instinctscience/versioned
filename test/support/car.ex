@@ -5,8 +5,8 @@ defmodule Versioned.Test.Car do
   import Ecto.Changeset
 
   versioned_schema "cars" do
-    field(:name, :string)
-    has_many(:people, Person, versioned: true)
+    field :name, :string
+    has_many :people, Person, on_replace: :delete, versioned: true
   end
 
   def changeset(car_or_changeset, params) do

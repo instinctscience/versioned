@@ -5,9 +5,9 @@ defmodule Versioned.Test.Person do
   alias Versioned.Test.{Car, Hobby}
 
   versioned_schema "people" do
-    field(:name, :string)
-    belongs_to(:car, Car, type: :binary_id)
-    has_many(:fancy_hobbies, Hobby, versioned: :fancy_hobby_versions)
+    field :name, :string
+    belongs_to :car, Car, type: :binary_id
+    has_many :fancy_hobbies, Hobby, on_replace: :delete, versioned: :fancy_hobby_versions
   end
 
   def changeset(car_or_changeset, params) do

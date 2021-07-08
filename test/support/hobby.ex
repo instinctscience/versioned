@@ -5,8 +5,8 @@ defmodule Versioned.Test.Hobby do
   alias Versioned.Test.Person
 
   versioned_schema "hobbies" do
-    field(:name, :string)
-    belongs_to(:person, Person, type: :binary_id)
+    field :name, :string
+    belongs_to :person, Person, type: :binary_id
   end
 
   def changeset(car_or_changeset, params) do

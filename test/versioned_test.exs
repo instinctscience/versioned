@@ -115,7 +115,7 @@ defmodule VersionedTest do
   test "simultaneous inserts, preload" do
     params = %{
       name: "Mustang",
-      people: [%{name: "Fred", fancy_hobbies: [%{name: "Go-Kart"}, %{name: "Strudal"}]}]
+      people: [%{name: "Fred", fancy_hobbies: [%{name: "Go-Kart"}, %{name: "Strudel"}]}]
     }
 
     {:ok, %{id: car_id, people: [%{id: fred_id}]}} =
@@ -135,8 +135,76 @@ defmodule VersionedTest do
            } = Versioned.preload(p, [:car_version, :fancy_hobby_versions])
 
     # (Order is uncertain.)
-    for hob <- ~w(Go-Kart Strudal) do
+    for hob <- ~w(Go-Kart Strudel) do
       assert Enum.any?(hobby_versions, &(&1.name == hob))
     end
+  end
+
+  test "simultaneous updates" do
+    params = %{
+      name: "Mustang",
+      people: [
+        %{name: "Fred", fancy_hobbies: [%{name: "Go-Kart"}, %{name: "Strudel"}]},
+        %{name: "Jeff", fancy_hobbies: [%{name: "Aeropress"}]}
+      ]
+    }
+
+    {:ok,
+     %{
+       name: "Mustang",
+       people: [
+         %{name: "Fred", fancy_hobbies: [%{name: "Go-Kart"} = gk, %{name: "Strudel"} = s]} = fred,
+         %{name: "Jeff", fancy_hobbies: [%{name: "Aeropress"} = coffee]} = jeff
+       ]
+     } = car} =
+      %Car{}
+      |> Car.changeset(params)
+      |> Versioned.insert()
+
+    car = Repo.one(from Car, where: [id: ^car.id], preload: [people: :fancy_hobbies])
+
+    params = %{
+      id: car.id,
+      name: "Mustang",
+      people: [
+        %{id: fred.id, name: fred.name, fancy_hobbies: [%{id: gk.id, name: "Go-Kart"}]},
+        %{
+          id: jeff.id,
+          name: jeff.name,
+          fancy_hobbies: [%{id: coffee.id, name: "Espresso"}, %{name: "Breakdancing"}]
+        }
+      ]
+    }
+
+    Process.sleep(1100)
+
+    assert {:ok, _} = car |> Car.changeset(params) |> Versioned.update()
+    assert [fred2, fred1] = Versioned.history(Person, fred.id)
+
+    assert_hobbies(~w(Go-Kart Strudel), Versioned.preload(fred1, :fancy_hobby_versions))
+
+    assert %{fancy_hobby_versions: [%{name: "Go-Kart"}]} =
+             Versioned.preload(fred2, :fancy_hobby_versions)
+
+    assert [jeff2, jeff1] = Versioned.history(Person, jeff.id)
+
+    assert_hobbies(["Aeropress"], Versioned.preload(jeff1, :fancy_hobby_versions))
+
+    assert_hobbies(~w(Espresso Breakdancing), Versioned.preload(jeff2, :fancy_hobby_versions))
+
+    assert [%{is_deleted: true, name: "Strudel"}, %{is_deleted: false, name: "Strudel"}] =
+             Versioned.history(s)
+
+    assert [%{is_deleted: false, name: "Espresso"}, %{is_deleted: false, name: "Aeropress"}] =
+             Versioned.history(coffee)
+  end
+
+  defp assert_hobbies(expected, %{fancy_hobby_versions: hobbies}) do
+    Enum.reduce(expected, hobbies, fn hobby, acc ->
+      case Enum.find_index(acc, &(&1.name == hobby)) do
+        nil -> flunk("Didn't find hobby #{hobby}.")
+        n -> acc |> List.pop_at(n) |> elem(1)
+      end
+    end)
   end
 end
