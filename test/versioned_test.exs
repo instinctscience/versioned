@@ -177,13 +177,12 @@ defmodule VersionedTest do
     }
 
     assert {:ok, _} = car |> Car.changeset(params) |> Versioned.update()
-    assert [fred2, fred1] = Versioned.history(Person, fred.id)
 
+    assert [fred2, fred1] = Versioned.history(Person, fred.id)
     assert_hobbies(~w(Go-Kart Strudel), Versioned.preload(fred1, :fancy_hobby_versions))
     assert_hobbies(~w(Go-Kart), Versioned.preload(fred2, :fancy_hobby_versions))
 
     assert [jeff2, jeff1] = Versioned.history(Person, jeff.id)
-
     assert_hobbies(~w(Aeropress), Versioned.preload(jeff1, :fancy_hobby_versions))
     assert_hobbies(~w(Espresso Breakdancing), Versioned.preload(jeff2, :fancy_hobby_versions))
 
