@@ -16,11 +16,12 @@ defmodule Versioned do
           | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def insert(struct_or_changeset, opts \\ []) do
     cs = Changeset.change(struct_or_changeset)
+    opts = Keyword.put(opts, :inserted_at, DateTime.utc_now())
 
     Multi.new()
     |> Multi.insert(:record, cs, opts)
     |> Multi.run(:version, fn repo, %{record: record} ->
-      case build_version(record) do
+      case build_version(record, opts) do
         nil -> {:ok, nil}
         changeset -> repo.insert(changeset)
       end
@@ -41,9 +42,6 @@ defmodule Versioned do
           | {:error, any()}
           | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def update(changeset, opts \\ []) do
-    # This inserted_at is used for main record and all child records so that
-    # history can be fetched reliably since children would be inserted ~1/100th
-    # of a second later.
     opts = Keyword.put(opts, :inserted_at, DateTime.utc_now())
 
     Multi.new()
@@ -51,7 +49,7 @@ defmodule Versioned do
     |> Multi.insert(:version, &build_version(&1.record, opts), opts)
     |> Multi.run(:deleted, fn repo, _changes ->
       deleted_records =
-        for deleted <- deleted_records(changeset, inserted_at: DateTime.utc_now()) do
+        for deleted <- deleted_records(changeset, opts) do
           repo.insert!(deleted)
         end
 
@@ -169,7 +167,7 @@ defmodule Versioned do
   # Create a `version_mod` struct to insert from a new instance of the record.
   # Pass option `deleted: true` to mark as deleted.
   @spec build_version(Schema.t(), keyword) :: Changeset.t() | nil
-  defp build_version(%mod{} = struct, opts \\ []) do
+  defp build_version(%mod{} = struct, opts) do
     with params when params != nil <- build_params(struct, opts) do
       mod
       |> Module.concat(Version)
@@ -366,9 +364,11 @@ defmodule Versioned do
       repo().all(
         from assoc_ver in assoc_ver_mod,
           distinct: ^assoc_singular_id,
+          # assoc_ver.inserted_at <= ^struct.inserted_at,
           where:
             field(assoc_ver, ^owner_key) == ^Map.get(struct, owner_key) and
-              assoc_ver.inserted_at <= datetime_add(^struct.inserted_at, 1, "second"),
+              assoc_ver.inserted_at <= ^struct.inserted_at,
+          # assoc_ver.inserted_at <= datetime_add(^struct.inserted_at, 1, "second"),
           order_by: {:desc, :inserted_at}
       )
 

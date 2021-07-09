@@ -176,8 +176,6 @@ defmodule VersionedTest do
       ]
     }
 
-    Process.sleep(1100)
-
     assert {:ok, _} = car |> Car.changeset(params) |> Versioned.update()
     assert [fred2, fred1] = Versioned.history(Person, fred.id)
 
@@ -202,7 +200,7 @@ defmodule VersionedTest do
   defp assert_hobbies(expected, %{fancy_hobby_versions: hobbies}) do
     Enum.reduce(expected, hobbies, fn hobby, acc ->
       case Enum.find_index(acc, &(&1.name == hobby)) do
-        nil -> flunk("Didn't find hobby #{hobby}.")
+        nil -> flunk("Didn't find hobby #{hobby} in #{inspect(hobbies)}.")
         n -> acc |> List.pop_at(n) |> elem(1)
       end
     end)
