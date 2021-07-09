@@ -131,8 +131,7 @@ defmodule Versioned.Schema do
 
         belongs_to :"#{unquote(field)}_version", Module.concat(unquote(entity), Version),
           define_field: false,
-          foreign_key: :"#{unquote(field)}_id",
-          references: :"#{unquote(field)}_id"
+          foreign_key: :"#{unquote(field)}_id"
       end
 
     [line | acc]
