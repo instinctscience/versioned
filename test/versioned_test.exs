@@ -180,15 +180,15 @@ defmodule VersionedTest do
     assert [fred2, fred1] = Versioned.history(Person, fred.id)
 
     assert_hobbies(~w(Go-Kart Strudel), Versioned.preload(fred1, :fancy_hobby_versions))
-
-    assert %{fancy_hobby_versions: [%{name: "Go-Kart"}]} =
-             Versioned.preload(fred2, :fancy_hobby_versions)
+    assert_hobbies(~w(Go-Kart), Versioned.preload(fred2, :fancy_hobby_versions))
 
     assert [jeff2, jeff1] = Versioned.history(Person, jeff.id)
 
-    assert_hobbies(["Aeropress"], Versioned.preload(jeff1, :fancy_hobby_versions))
-
+    assert_hobbies(~w(Aeropress), Versioned.preload(jeff1, :fancy_hobby_versions))
     assert_hobbies(~w(Espresso Breakdancing), Versioned.preload(jeff2, :fancy_hobby_versions))
+
+    assert [%{is_deleted: false, name: "Go-Kart"}, %{is_deleted: false, name: "Go-Kart"}] =
+             Versioned.history(gk)
 
     assert [%{is_deleted: true, name: "Strudel"}, %{is_deleted: false, name: "Strudel"}] =
              Versioned.history(s)
@@ -197,12 +197,18 @@ defmodule VersionedTest do
              Versioned.history(coffee)
   end
 
+  # Make sure `expected` hobby names are all accounted for, order agnostic.
   defp assert_hobbies(expected, %{fancy_hobby_versions: hobbies}) do
-    Enum.reduce(expected, hobbies, fn hobby, acc ->
+    expected
+    |> Enum.reduce(hobbies, fn hobby, acc ->
       case Enum.find_index(acc, &(&1.name == hobby)) do
         nil -> flunk("Didn't find hobby #{hobby} in #{inspect(hobbies)}.")
         n -> acc |> List.pop_at(n) |> elem(1)
       end
     end)
+    |> case do
+      [] -> :ok
+      more -> flunk("Unexpected hobbies: #{inspect(more)}")
+    end
   end
 end

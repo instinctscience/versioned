@@ -48,12 +48,12 @@ defmodule Versioned do
     |> Multi.update(:record, changeset, opts)
     |> Multi.insert(:version, &build_version(&1.record, opts), opts)
     |> Multi.run(:deleted, fn repo, _changes ->
-      deleted_records =
-        for deleted <- deleted_records(changeset, opts) do
+      deleted_versions =
+        for deleted <- deleted_versions(changeset, opts) do
           repo.insert!(deleted)
         end
 
-      {:ok, deleted_records}
+      {:ok, deleted_versions}
     end)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
@@ -236,9 +236,10 @@ defmodule Versioned do
     raise "No assoc handler while processing #{inspect(mod)}: #{inspect(ecto_assoc)}"
   end
 
-  # Recursively crawl changeset and compile a list of ..................
-  @spec deleted_records(Changeset.t(), keyword) :: [map]
-  defp deleted_records(%{action: action, data: %mod{}} = changeset, opts) do
+  # Recursively crawl changeset and compile a list of version structs with
+  # is_deleted set to true.
+  @spec deleted_versions(Changeset.t(), keyword) :: [Ecto.Schema.t()]
+  defp deleted_versions(%{action: action, data: %mod{}} = changeset, opts) do
     deletes =
       if action == :replace do
         changeset
@@ -258,8 +259,8 @@ defmodule Versioned do
 
       case {cardinality, change} do
         {_, nil} -> acc
-        {:one, change} -> acc ++ deleted_records(change, opts)
-        {:many, changes} -> acc ++ Enum.flat_map(changes, &deleted_records(&1, opts))
+        {:one, change} -> acc ++ deleted_versions(change, opts)
+        {:many, changes} -> acc ++ Enum.flat_map(changes, &deleted_versions(&1, opts))
       end
     end)
   end
@@ -278,7 +279,8 @@ defmodule Versioned do
   This means there is a corresponding Ecto.Schema module with an extra
   ".Version" on the end.
   """
-  @spec versioned?(module) :: boolean
+  @spec versioned?(module | Ecto.Schema.t()) :: boolean
+  def versioned?(%mod{}), do: versioned?(mod)
   def versioned?(mod), do: function_exported?(mod, :__versioned__, 1)
 
   @doc "True if the given module or struct is a version."

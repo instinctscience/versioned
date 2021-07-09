@@ -12,7 +12,7 @@ defmodule Versioned.Test.Person do
 
   def changeset(car_or_changeset, params) do
     car_or_changeset
-    |> cast(params, [:inserted_at, :name])
+    |> cast(params, [:name])
     |> validate_required([:name])
     |> cast_assoc(:fancy_hobbies)
   end
