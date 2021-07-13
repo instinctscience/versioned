@@ -90,8 +90,8 @@ defmodule VersionedTest do
     {:ok, %{id: ^car_id}} = car |> Car.changeset(%{name: "Mustanggg"}) |> Versioned.update()
 
     assert [
-             %Versioned.Test.Car.Version{car_id: car_id, name: "Mustanggg"},
-             %Versioned.Test.Car.Version{car_id: car_id, name: "Mustangg"}
+             %Car.Version{car_id: car_id, name: "Mustanggg"},
+             %Car.Version{car_id: car_id, name: "Mustangg"}
            ] = Versioned.history(Car, car_id, limit: 2)
   end
 
@@ -161,8 +161,6 @@ defmodule VersionedTest do
       |> Car.changeset(params)
       |> Versioned.insert()
 
-    car = Repo.one(from Car, where: [id: ^car.id], preload: [people: :fancy_hobbies])
-
     params = %{
       id: car.id,
       name: "Mustang",
@@ -176,6 +174,7 @@ defmodule VersionedTest do
       ]
     }
 
+    car = Repo.one(from Car, where: [id: ^car.id], preload: [people: :fancy_hobbies])
     assert {:ok, _} = car |> Car.changeset(params) |> Versioned.update()
 
     assert [fred2, fred1] = Versioned.history(Person, fred.id)
@@ -186,14 +185,66 @@ defmodule VersionedTest do
     assert_hobbies(~w(Aeropress), Versioned.preload(jeff1, :fancy_hobby_versions))
     assert_hobbies(~w(Espresso Breakdancing), Versioned.preload(jeff2, :fancy_hobby_versions))
 
-    assert [%{is_deleted: false, name: "Go-Kart"}, %{is_deleted: false, name: "Go-Kart"}] =
-             Versioned.history(gk)
+    assert [%{is_deleted: false, name: "Go-Kart"}] = Versioned.history(gk)
 
     assert [%{is_deleted: true, name: "Strudel"}, %{is_deleted: false, name: "Strudel"}] =
              Versioned.history(s)
 
     assert [%{is_deleted: false, name: "Espresso"}, %{is_deleted: false, name: "Aeropress"}] =
              Versioned.history(coffee)
+
+    assert [car2, car1] = Versioned.history(Car, car.id, preload: [person_versions: :fancy_hobby_versions])
+    f1 = Enum.find(car1.person_versions, &(&1.name == "Fred"))
+    f2 = Enum.find(car2.person_versions, &(&1.name == "Fred"))
+    j1 = Enum.find(car1.person_versions, &(&1.name == "Jeff"))
+    j2 = Enum.find(car2.person_versions, &(&1.name == "Jeff"))
+    assert_hobbies(~w(Go-Kart Strudel), Versioned.preload(f1, :fancy_hobby_versions))
+    assert_hobbies(~w(Go-Kart), Versioned.preload(f2, :fancy_hobby_versions))
+    assert_hobbies(~w(Aeropress), Versioned.preload(j1, :fancy_hobby_versions))
+    assert_hobbies(~w(Espresso Breakdancing), Versioned.preload(j2, :fancy_hobby_versions))
+  end
+
+  @tag :skip
+  test "simultaneous updates from middle (person) perspective" do
+    params = %{
+      car: %{name: "Mustang"},
+      name: "Fred",
+      fancy_hobbies: [%{name: "Go-Kart"}, %{name: "Strudel"}]
+    }
+
+    {:ok, %{car: %{} = _car, fancy_hobbies: [%{name: "Go-Kart"} = gk, %{name: "Strudel"}]} = fred} =
+      %Person{}
+      |> Person.changeset(params)
+      |> Versioned.insert()
+
+    fred = Repo.one(from Person, where: [id: ^fred.id], preload: [:car, :fancy_hobbies])
+
+    params = %{
+      id: fred.id,
+      name: "Freddy",
+      fancy_hobbies: [%{id: gk.id, name: "Go-Kart"}, %{name: "Cribbage"}]
+    }
+
+    assert {:ok, _} = fred |> Person.changeset(params) |> Versioned.update()
+
+    assert [_, _] = Versioned.history(Person, fred.id)
+
+    assert [fred2, fred1] = Versioned.history(Person, fred.id)
+    assert_hobbies(~w(Go-Kart Strudel), Versioned.preload(fred1, :fancy_hobby_versions))
+    assert_hobbies(~w(Go-Kart Cribbage), Versioned.preload(fred2, :fancy_hobby_versions))
+
+    assert [%{is_deleted: false, name: "Go-Kart"}] = Versioned.history(gk)
+  end
+
+  test "Version isn't inserted when there are no changes" do
+    {:ok, %{name: "Fred", fancy_hobbies: [gk]} = fred} =
+      %Person{}
+      |> Person.changeset(%{name: "Fred", fancy_hobbies: [%{name: "Go-Kart"}]})
+      |> Versioned.insert()
+
+    params = %{id: fred.id, fancy_hobbies: [%{id: gk.id, name: "Go-Kart"}]}
+    assert {:ok, _} = fred |> Person.changeset(params) |> Versioned.update()
+    assert [_] = Repo.all(Hobby.Version)
   end
 
   # Make sure `expected` hobby names are all accounted for, order agnostic.

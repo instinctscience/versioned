@@ -15,5 +15,6 @@ defmodule Versioned.Test.Person do
     |> cast(params, [:name])
     |> validate_required([:name])
     |> cast_assoc(:fancy_hobbies)
+    |> cast_assoc(:car)
   end
 end

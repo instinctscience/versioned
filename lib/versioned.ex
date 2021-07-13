@@ -1,6 +1,7 @@
 defmodule Versioned do
   @moduledoc "Tools for operating on versioned records."
   import Ecto.Query, except: [preload: 2]
+  import Versioned.Helpers
   alias Ecto.{Changeset, Multi, Schema}
 
   @doc """
@@ -16,7 +17,7 @@ defmodule Versioned do
           | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def insert(struct_or_changeset, opts \\ []) do
     cs = Changeset.change(struct_or_changeset)
-    opts = Keyword.put(opts, :inserted_at, DateTime.utc_now())
+    opts = Keyword.merge(opts, change: true, inserted_at: DateTime.utc_now())
 
     Multi.new()
     |> Multi.insert(:record, cs, opts)
@@ -42,19 +43,20 @@ defmodule Versioned do
           | {:error, any()}
           | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def update(changeset, opts \\ []) do
-    opts = Keyword.put(opts, :inserted_at, DateTime.utc_now())
+    opts = Keyword.merge(opts, change: changeset, inserted_at: DateTime.utc_now())
 
-    Multi.new()
-    |> Multi.update(:record, changeset, opts)
-    |> Multi.insert(:version, &build_version(&1.record, opts), opts)
-    |> Multi.run(:deleted, fn repo, _changes ->
-      deleted_versions =
-        for deleted <- deleted_versions(changeset, opts) do
-          repo.insert!(deleted)
-        end
+    fn repo ->
+      record = repo.update!(changeset, opts)
+      maybe_version = build_version(record, opts)
 
-      {:ok, deleted_versions}
-    end)
+      if maybe_version, do: repo.insert!(maybe_version)
+
+      for deleted <- deleted_versions(changeset, opts) do
+        repo.insert!(deleted)
+      end
+
+      record
+    end
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
   end
@@ -71,7 +73,7 @@ defmodule Versioned do
 
     Multi.new()
     |> Multi.delete(:record, cs, opts)
-    |> Multi.insert(:version, &build_version(&1.record, deleted: true), opts)
+    |> Multi.insert(:version, &build_version(&1.record, change: true, deleted: true), opts)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
   end
@@ -162,107 +164,6 @@ defmodule Versioned do
     result = repo().one(query)
 
     result && result.inserted_at
-  end
-
-  # Create a `version_mod` struct to insert from a new instance of the record.
-  # Pass option `deleted: true` to mark as deleted.
-  @spec build_version(Schema.t(), keyword) :: Changeset.t() | nil
-  defp build_version(%mod{} = struct, opts) do
-    with params when params != nil <- build_params(struct, opts) do
-      mod
-      |> Module.concat(Version)
-      |> struct()
-      |> Changeset.change(params)
-    end
-  end
-
-  @spec build_params(Schema.t(), keyword) :: map | nil
-  defp build_params(%mod{} = struct, opts) do
-    with params when params != nil <- maybe_build_version_params(struct, opts) do
-      Enum.reduce(mod.__schema__(:associations), params, fn assoc, acc ->
-        child = Map.get(struct, assoc)
-        assoc_info = mod.__schema__(:association, assoc)
-
-        case build_assoc_params(assoc_info, child, opts) do
-          nil ->
-            acc
-
-          p ->
-            if versioned?(assoc_info.queryable) do
-              key = assoc_info.owner.__versioned__(:has_many_field, assoc)
-              Map.put(acc, key, p)
-            else
-              Map.put(acc, assoc, p)
-            end
-        end
-      end)
-    end
-  end
-
-  # If the struct is versioned, build parameters for the corresponding version
-  # record to insert. nil otherwise.
-  @spec maybe_build_version_params(Schema.t(), keyword) :: map | nil
-  defp maybe_build_version_params(%mod{} = struct, opts) do
-    if versioned?(mod) do
-      :fields
-      |> mod.__schema__()
-      |> Enum.reject(&(&1 in [:id, :inserted_at, :updated_at]))
-      |> Enum.filter(&(&1 in Module.concat(mod, Version).__schema__(:fields)))
-      |> Map.new(&{&1, Map.get(struct, &1)})
-      |> Map.put(:"#{mod.__versioned__(:source_singular)}_id", struct.id)
-      |> Map.put(:is_deleted, Keyword.get(opts, :deleted, false))
-      |> Map.put(:inserted_at, opts[:inserted_at])
-    else
-      nil
-    end
-  end
-
-  @spec build_assoc_params(Ecto.Association.t(), Schema.t() | [Schema.t()], keyword) :: list | nil
-  defp build_assoc_params(%Ecto.Association.Has{cardinality: :many}, data, opts)
-       when is_list(data) do
-    Enum.reduce(data, [], fn record, acc ->
-      case build_params(record, opts) do
-        nil -> acc
-        params -> [params | acc]
-      end
-    end)
-  end
-
-  defp build_assoc_params(_, %Ecto.Association.NotLoaded{}, _) do
-    nil
-  end
-
-  defp build_assoc_params(ecto_assoc, %mod{}, _) do
-    raise "No assoc handler while processing #{inspect(mod)}: #{inspect(ecto_assoc)}"
-  end
-
-  # Recursively crawl changeset and compile a list of version structs with
-  # is_deleted set to true.
-  @spec deleted_versions(Changeset.t(), keyword) :: [Ecto.Schema.t()]
-  defp deleted_versions(%{action: action, data: %mod{}} = changeset, opts) do
-    deletes =
-      if action == :replace do
-        changeset
-        |> Changeset.apply_changes()
-        |> maybe_build_version_params(Keyword.put(opts, :deleted, true))
-        |> case do
-          nil -> []
-          params -> [struct(Module.concat(mod, Version), params)]
-        end
-      else
-        []
-      end
-
-    Enum.reduce(mod.__schema__(:associations), deletes, fn assoc, acc ->
-      cardinality = mod.__schema__(:association, assoc).cardinality
-      change = Changeset.get_change(changeset, assoc)
-
-      case {cardinality, change} do
-        {_, nil} -> acc
-        {:one, change} -> acc ++ deleted_versions(change, opts)
-        {:many, changes} -> acc ++ Enum.flat_map(changes, &deleted_versions(&1, opts))
-      end
-    end)
   end
 
   # Get the configured Ecto.Repo module.
@@ -366,11 +267,9 @@ defmodule Versioned do
       repo().all(
         from assoc_ver in assoc_ver_mod,
           distinct: ^assoc_singular_id,
-          # assoc_ver.inserted_at <= ^struct.inserted_at,
           where:
             field(assoc_ver, ^owner_key) == ^Map.get(struct, owner_key) and
               assoc_ver.inserted_at <= ^struct.inserted_at,
-          # assoc_ver.inserted_at <= datetime_add(^struct.inserted_at, 1, "second"),
           order_by: {:desc, :inserted_at}
       )
 
