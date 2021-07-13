@@ -18,7 +18,6 @@ defmodule Versioned.Schema do
   @doc "Create a versioned schema."
   defmacro versioned_schema(source, do: block) do
     {:__block__, _m, lines_ast} = Helpers.normalize_block(block)
-
     mod = __CALLER__.module
 
     quote do
@@ -49,8 +48,8 @@ defmodule Versioned.Schema do
 
       @primary_key {:id, :binary_id, autogenerate: true}
       schema unquote(source) do
-        field(:version_id, :binary_id, virtual: true)
-        timestamps(type: :utc_datetime_usec)
+        field :version_id, :binary_id, virtual: true
+        timestamps type: :utc_datetime_usec
         unquote(remove_versioned_opts(block))
       end
 
@@ -80,9 +79,9 @@ defmodule Versioned.Schema do
 
         @primary_key {:id, :binary_id, autogenerate: true}
         schema "#{unquote(source)}_versions" do
-          field(:is_deleted, :boolean)
-          field(:"#{@source_singular}_id", :binary_id)
-          timestamps(type: :utc_datetime_usec, updated_at: false)
+          field :is_deleted, :boolean
+          field :"#{@source_singular}_id", :binary_id
+          timestamps type: :utc_datetime_usec, updated_at: false
           version_lines(unquote(lines_ast))
         end
 
@@ -128,8 +127,11 @@ defmodule Versioned.Schema do
   defp do_version_line({:belongs_to, _m, [field, entity, opts]}, acc) do
     line =
       quote do
-        belongs_to(:"#{unquote(field)}", unquote(entity), unquote(opts))
-        field(:"#{unquote(field)}_version", :map, virtual: true)
+        belongs_to :"#{unquote(field)}", unquote(entity), unquote(opts)
+
+        belongs_to :"#{unquote(field)}_version", Module.concat(unquote(entity), Version),
+          define_field: false,
+          foreign_key: :"#{unquote(field)}_id"
       end
 
     [line | acc]
@@ -143,14 +145,12 @@ defmodule Versioned.Schema do
       quote do
         @has_many_fields {unquote(field), unquote(key)}
 
+        ver_mod = Module.concat(unquote(entity), Version)
         foreign_key = unquote(field_opts[:foreign_key]) || :"#{@source_singular}_id"
 
-        has_many(
-          unquote(key),
-          Module.concat(unquote(entity), Version),
+        has_many unquote(key), ver_mod,
           foreign_key: foreign_key,
           references: :"#{@source_singular}_id"
-        )
       end
     end
 
@@ -161,10 +161,9 @@ defmodule Versioned.Schema do
           quote do
             @has_many_fields {unquote(field), unquote(field)}
 
-            has_many(:"#{unquote(field)}", unquote(entity),
+            has_many :"#{unquote(field)}", unquote(entity),
               foreign_key: :"#{@source_singular}_id",
               references: :"#{@source_singular}_id"
-            )
           end
 
         # has_many declaration used `versioned: true` -- just use an obvious name.
@@ -183,7 +182,7 @@ defmodule Versioned.Schema do
     [line | acc]
   end
 
-  # Drop our options from the AST for Ecto.Schema.
+  # Drop our options from the AST for Ecto.Schema because it croaks otherwise.
   @spec remove_versioned_opts(Macro.t()) :: Macro.t()
   defp remove_versioned_opts({:__block__, top_m, lines}) do
     lines =
