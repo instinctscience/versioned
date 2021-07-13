@@ -1,6 +1,6 @@
 defmodule Versioned.Helpers do
   @moduledoc "Tools shared between modules, for internal use."
-  alias Ecto.Changeset
+  alias Ecto.{Changeset, Schema}
 
   @doc "Wrap a line of AST in a block if it isn't already wrapped."
   @spec normalize_block(Macro.t()) :: Macro.t()
@@ -117,23 +117,20 @@ defmodule Versioned.Helpers do
   defp build_assoc_params(%{cardinality: :many, field: field}, data, opts)
        when is_list(data) do
     {inserted_params_list, change_fn} =
-      case opts[:change] do
-        %{} = change ->
-          cs_list = Changeset.get_change(change, field)
+      with %{} = change <- opts[:change],
+           cs_list when is_list(cs_list) <- Changeset.get_change(change, field) do
+        change_fn = fn record ->
+          Enum.find(cs_list, &(Changeset.get_field(&1, :id) == record.id))
+        end
 
-          change_fn = fn record ->
-            Enum.find(cs_list, &(Changeset.get_field(&1, :id) == record.id))
-          end
+        inserted_css = Enum.filter(cs_list, &(&1.action == :insert))
 
-          inserted_css = Enum.filter(cs_list, &(&1.action == :insert))
+        inserted_params_list =
+          inserted_css |> Enum.map(&build_params(&1, opts)) |> Enum.filter(& &1)
 
-          inserted_params_list =
-            inserted_css |> Enum.map(&build_params(&1, opts)) |> Enum.filter(& &1)
-
-          {inserted_params_list, change_fn}
-
-        true_or_nil ->
-          {[], fn _ -> true_or_nil end}
+        {inserted_params_list, change_fn}
+      else
+        true_or_nil -> {[], fn _ -> true_or_nil end}
       end
 
     Enum.reduce(data, inserted_params_list, fn record, acc ->

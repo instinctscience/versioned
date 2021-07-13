@@ -193,7 +193,9 @@ defmodule VersionedTest do
     assert [%{is_deleted: false, name: "Espresso"}, %{is_deleted: false, name: "Aeropress"}] =
              Versioned.history(coffee)
 
-    assert [car2, car1] = Versioned.history(Car, car.id, preload: [person_versions: :fancy_hobby_versions])
+    assert [car2, car1] =
+             Versioned.history(Car, car.id, preload: [person_versions: :fancy_hobby_versions])
+
     f1 = Enum.find(car1.person_versions, &(&1.name == "Fred"))
     f2 = Enum.find(car2.person_versions, &(&1.name == "Fred"))
     j1 = Enum.find(car1.person_versions, &(&1.name == "Jeff"))

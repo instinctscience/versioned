@@ -45,18 +45,20 @@ defmodule Versioned do
   def update(changeset, opts \\ []) do
     opts = Keyword.merge(opts, change: changeset, inserted_at: DateTime.utc_now())
 
-    fn repo ->
-      record = repo.update!(changeset, opts)
-      maybe_version = build_version(record, opts)
-
-      if maybe_version, do: repo.insert!(maybe_version)
-
-      for deleted <- deleted_versions(changeset, opts) do
-        repo.insert!(deleted)
-      end
-
-      record
-    end
+    Multi.new()
+    |> Multi.update(:record, changeset, opts)
+    |> Multi.run(:version, fn repo, %{record: record} ->
+      v = build_version(record, opts)
+      if v, do: repo.insert(v), else: {:ok, nil}
+    end)
+    |> Multi.run(:deletes, fn repo, _changes ->
+      Enum.reduce_while(deleted_versions(changeset, opts), {:ok, []}, fn deleted, {:ok, acc} ->
+        case repo.insert(deleted) do
+          {:ok, del} -> {:cont, {:ok, [del | acc]}}
+          {:error, _} = err -> {:halt, err}
+        end
+      end)
+    end)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
   end
