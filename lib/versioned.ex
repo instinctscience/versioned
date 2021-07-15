@@ -135,13 +135,25 @@ defmodule Versioned do
   end
 
   @doc """
-  Get a version for a schema module.
+  Get a version by its (version) id where `module` is the non-version schema.
 
   Options can include anything used by the repo's `get/3`.
   """
   @spec get(module, any, keyword) :: Schema.t() | nil
-  def get(module, id, opts \\ []) do
-    repo().get(version_mod(module), id, opts)
+  def get(module, ver_id, opts \\ []) do
+    repo().get(version_mod(module), ver_id, opts)
+  end
+
+  @doc """
+  Get the most recent version of `module` with the given `entity_id`.
+
+  Options can include anything used by the repo's `get/3`.
+  """
+  @spec get_last(module, any, keyword) :: Schema.t() | nil
+  def get_last(module, entity_id, opts \\ []) do
+    module
+    |> history_query(entity_id, limit: 1)
+    |> repo().one(opts)
   end
 
   @doc """
@@ -207,9 +219,9 @@ defmodule Versioned do
   `mod`, if defined, should be the entity module name itself. If not defined,
   `query` must be this module name and not any type of query.
   """
-  @spec with_versions(Ecto.Queryable.t(), Ecto.Schema.t() | nil) :: Ecto.Query.t()
-  def with_versions(query, mod \\ nil) do
-    mod = mod || query
+  @spec with_version_id(Ecto.Queryable.t(), Ecto.Schema.t() | nil) :: Ecto.Query.t()
+  def with_version_id(queryable, mod \\ nil) do
+    mod = mod || queryable
     ver_mod = Module.concat(mod, Version)
     singular_id = :"#{mod.__versioned__(:source_singular)}_id"
 
@@ -218,7 +230,7 @@ defmodule Versioned do
         distinct: ^singular_id,
         order_by: {:desc, :inserted_at}
 
-    from q in query,
+    from q in queryable,
       join: v in subquery(versions),
       on: q.id == field(v, ^singular_id),
       select_merge: %{version_id: v.id}

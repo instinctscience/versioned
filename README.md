@@ -22,9 +22,7 @@ used to retrieve a list of entity versions, newest first.
 ```elixir
 def deps do
   [
-    {:versioned,
-      git: "https://github.com/instinctscience/versioned.git",
-      branch: "main"}
+    {:versioned, "~> 0.1.0"}
   ]
 end
 ```
@@ -40,7 +38,7 @@ defmodule MyApp.Repo.Migrations.CreateCar do
     # - "cars" with columns id, name, inserted_at and updated_at
     # - "cars_versions" with columns id, name, car_id and inserted_at
     create_versioned_table(:cars) do
-      add(:name, :string)
+      add :name, :string
     end
   end
 end
@@ -49,7 +47,7 @@ defmodule MyApp.Car do
   use Versioned.Schema
 
   versioned_schema "cars" do
-    field(:name, :string)
+    field :name, :string
   end
 end
 

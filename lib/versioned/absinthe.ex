@@ -23,7 +23,27 @@ defmodule Versioned.Absinthe do
         field(:id, :id)
         field(:is_deleted, :boolean)
         field(:inserted_at, :datetime)
+        field(unquote(:"#{wrapped_name}_id"), :id)
         field(unquote(wrapped_name), unquote(wrapped_name))
+      end
+    end
+  end
+
+  defmacro versioned_object(name, do: block) do
+    quote do
+      object unquote(name) do
+        field(:id, non_null(:id))
+        field(:version_id, :id)
+        field(:inserted_at, non_null(:datetime))
+        field(:updated_at, non_null(:datetime))
+        unquote(block)
+      end
+
+      object unquote(:"#{name}_version") do
+        field(unquote(:"#{name}_id"), :id)
+        field(:is_deleted, :boolean)
+        field(:inserted_at, :datetime)
+        unquote(block)
       end
     end
   end

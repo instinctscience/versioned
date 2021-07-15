@@ -60,6 +60,7 @@ defmodule Versioned.Schema do
       @primary_key {:id, :binary_id, autogenerate: true}
       schema unquote(source) do
         field :version_id, :binary_id, virtual: true
+        has_many :versions, __MODULE__.Version
         timestamps type: :utc_datetime_usec
         unquote(remove_versioned_opts(block))
       end
@@ -91,7 +92,8 @@ defmodule Versioned.Schema do
         @primary_key {:id, :binary_id, autogenerate: true}
         schema "#{unquote(source)}_versions" do
           field :is_deleted, :boolean
-          field :"#{@source_singular}_id", :binary_id
+          # field :"#{@source_singular}_id", :binary_id
+          belongs_to :"#{@source_singular}", unquote(mod), type: :binary_id
           timestamps type: :utc_datetime_usec, updated_at: false
           version_lines(unquote(lines_ast))
         end
