@@ -1,5 +1,5 @@
 defmodule Versioned.Helpers do
-  @moduledoc "Tools shared between modules, for internal use."
+  @moduledoc "Tools shared between modules. (For internal use.)"
   alias Ecto.{Changeset, Schema}
 
   @doc "Wrap a line of AST in a block if it isn't already wrapped."
@@ -11,7 +11,12 @@ defmodule Versioned.Helpers do
 
   @doc """
   Create a `version_mod` struct to insert from a new instance of the record.
-  Pass option `deleted: true` to mark as deleted.
+
+  ## Options
+
+  * `:deleted` - If `true`, records will marked as deleted.
+  * `:change` - For updates, an `t:Ecto.Changeset.t/0` should be provided to
+    inform which records were inserted vs updated vs deleted.
   """
   @spec build_version(Schema.t(), keyword) :: Changeset.t() | nil
   def build_version(%mod{} = struct, opts) do
@@ -58,35 +63,43 @@ defmodule Versioned.Helpers do
   defp build_params(%mod{} = struct, opts) do
     with params when params != nil <- maybe_build_version_params(struct, opts) do
       Enum.reduce(mod.__schema__(:associations), params, fn assoc_name, acc ->
-        child = Map.get(struct, assoc_name)
-        assoc_info = mod.__schema__(:association, assoc_name)
-        %{cardinality: cardinality, field: field, owner: owner, queryable: queryable} = assoc_info
-        v? = Versioned.versioned?(queryable)
-
-        finish = fn
-          _, params, false -> Map.put(acc, assoc_name, params)
-          ver_key, params, true -> Map.put(acc, ver_key, params)
-        end
-
-        case {cardinality, build_assoc_params(assoc_info, child, opts)} do
-          {_, nil} -> acc
-          {:one, params} -> finish.(:"#{field}_version", params, v?)
-          {:many, list} -> finish.(owner.__versioned__(:has_many_field, assoc_name), list, v?)
-        end
+        :association |> mod.__schema__(assoc_name) |> do_build_params(struct, opts, acc)
       end)
     end
   end
 
-  @doc """
-  If the struct is versioned, build parameters for the corresponding version
-  record to insert. nil otherwise.
-  """
+  @spec do_build_params(Ecto.Association.t(), Schema.t(), keyword, map) :: map
+  defp do_build_params(
+         %{cardinality: cardinality, field: field, owner: owner, queryable: queryable} =
+           assoc_info,
+         struct,
+         opts,
+         acc
+       ) do
+    child = Map.get(struct, field)
+    v? = Versioned.versioned?(queryable)
+
+    finish = fn
+      _, params, false -> Map.put(acc, field, params)
+      ver_key, params, true -> Map.put(acc, ver_key, params)
+    end
+
+    case {cardinality, build_assoc_params(assoc_info, child, opts)} do
+      {_, nil} -> acc
+      {:one, params} -> finish.(:"#{field}_version", params, v?)
+      {:many, list} -> finish.(owner.__versioned__(:has_many_field, field), list, v?)
+    end
+  end
+
+  defp do_build_params(_, _, _, acc), do: acc
+
+  # If the struct is versioned, build parameters for the corresponding version
+  # record to insert. nil otherwise.
   @spec maybe_build_version_params(Schema.t(), keyword) :: map | nil
-  def maybe_build_version_params(%mod{} = struct, opts) do
+  defp maybe_build_version_params(%mod{} = struct, opts) do
     change = opts[:change]
 
-    # if Versioned.versioned?(mod) do
-    if Versioned.versioned?(mod) and (not match?(%{}, change) or 0 < map_size(change.changes)) do
+    if Versioned.versioned?(mod) and (not is_map(change) or 0 < map_size(change.changes)) do
       :fields
       |> mod.__schema__()
       |> Enum.reject(&(&1 in [:id, :inserted_at, :updated_at]))
@@ -100,6 +113,7 @@ defmodule Versioned.Helpers do
     end
   end
 
+  # Build parameters for an association if data is present.
   @spec build_assoc_params(Ecto.Association.t(), Schema.t() | [Schema.t()], keyword) :: list | nil
   defp build_assoc_params(_, %Ecto.Association.NotLoaded{}, _) do
     nil

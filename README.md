@@ -15,7 +15,7 @@ deletes where the record is truly deleted.
 Versioned provides helpers for migrations and schemas. The `Versioned` module
 has `insert/2`, `update/2` and `delete/2` which should be used in place of
 your application's `Repo` for versioned tables. Finally, `history/3` can be
-used to retrieve a list of entity versions.
+used to retrieve a list of entity versions, newest first.
 
 ## Installation
 
@@ -79,6 +79,15 @@ defmodule MyApp do
   end
 end
 ```
+
+## Managing Groups of Records Together
+
+Also of note is the library's ability to properly manage version records when
+inserting, updating or deleting groups of records via `has_many` relationships
+with `Ecto.Changeset.cast_assoc/3`. Note that creating or updating a single
+child record in the params for a `belongs_to` connection is not currently
+supported. In fact, there are probably other potentially useful features and
+pieces which have not yet been explored.
 
 ## Extras
 

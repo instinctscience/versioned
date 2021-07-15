@@ -1,6 +1,17 @@
 defmodule Versioned.Schema do
   @moduledoc """
   Enhances Ecto.Schema modules to track a full history of changes.
+
+  ## Example
+
+      defmodule MyApp.Car do
+        use Versioned.Schema
+
+        versioned_schema "cars" do
+          field :name, :string
+          has_many :people, MyApp.Person, versioned: true
+        end
+      end
   """
   alias Versioned.Helpers
 

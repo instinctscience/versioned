@@ -1,6 +1,18 @@
 defmodule Versioned.Migration do
   @moduledoc """
   Allows creating tables for versioned schemas.
+
+  ## Example
+
+      defmodule MyApp.Repo.Migrations.CreateCar do
+        use Versioned.Migration
+
+        def change do
+          create_versioned_table(:cars) do
+            add :name, :string
+          end
+        end
+      end
   """
   alias Versioned.Helpers
 

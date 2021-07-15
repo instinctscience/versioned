@@ -156,10 +156,7 @@ defmodule VersionedTest do
          %{name: "Fred", fancy_hobbies: [%{name: "Go-Kart"} = gk, %{name: "Strudel"} = s]} = fred,
          %{name: "Jeff", fancy_hobbies: [%{name: "Aeropress"} = coffee]} = jeff
        ]
-     } = car} =
-      %Car{}
-      |> Car.changeset(params)
-      |> Versioned.insert()
+     } = car} = %Car{} |> Car.changeset(params) |> Versioned.insert()
 
     params = %{
       id: car.id,
@@ -185,6 +182,7 @@ defmodule VersionedTest do
     assert_hobbies(~w(Aeropress), Versioned.preload(jeff1, :fancy_hobby_versions))
     assert_hobbies(~w(Espresso Breakdancing), Versioned.preload(jeff2, :fancy_hobby_versions))
 
+    # Note only one version because the update had no change.
     assert [%{is_deleted: false, name: "Go-Kart"}] = Versioned.history(gk)
 
     assert [%{is_deleted: true, name: "Strudel"}, %{is_deleted: false, name: "Strudel"}] =
@@ -206,6 +204,8 @@ defmodule VersionedTest do
     assert_hobbies(~w(Espresso Breakdancing), Versioned.preload(j2, :fancy_hobby_versions))
   end
 
+  # This ability doesn't quite work right now, but I don't personally need it
+  # yet, either, because I only cast_assoc "has_many"s.
   @tag :skip
   test "simultaneous updates from middle (person) perspective" do
     params = %{

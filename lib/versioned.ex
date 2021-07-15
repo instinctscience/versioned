@@ -52,15 +52,21 @@ defmodule Versioned do
       if v, do: repo.insert(v), else: {:ok, nil}
     end)
     |> Multi.run(:deletes, fn repo, _changes ->
-      Enum.reduce_while(deleted_versions(changeset, opts), {:ok, []}, fn deleted, {:ok, acc} ->
-        case repo.insert(deleted) do
-          {:ok, del} -> {:cont, {:ok, [del | acc]}}
-          {:error, _} = err -> {:halt, err}
-        end
-      end)
+      do_update_deletes(repo, changeset, opts)
     end)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
+  end
+
+  @spec do_update_deletes(Ecto.Repo.t(), Changeset.t(), keyword) ::
+          {:ok, [Schema.t()]} | {:error, Changeset.t()}
+  defp do_update_deletes(repo, changeset, opts) do
+    Enum.reduce_while(deleted_versions(changeset, opts), {:ok, []}, fn deleted, {:ok, acc} ->
+      case repo.insert(deleted) do
+        {:ok, del} -> {:cont, {:ok, [del | acc]}}
+        {:error, _} = err -> {:halt, err}
+      end
+    end)
   end
 
   @doc """
@@ -220,6 +226,17 @@ defmodule Versioned do
 
   @doc """
   Preload version associations.
+
+  ## Example
+
+      iex> pv = Repo.get(Person.Version, "7f85b58b-ef57-4288-ade0-ff47f0ceb116")
+      iex> Versioned.preload(pv, :fancy_hobby_versions)
+      %Person.Version{
+        id: "7f85b58b-ef57-4288-ade0-ff47f0ceb116",
+        fancy_hobby_versions: [
+          %{id: "a2a911fb-e2a6-459c-93e2-616be0fa1a45", name: "Jenga"}
+        ]
+      }
   """
   @spec preload(Ecto.Schema.t() | [Ecto.Schema.t()], atom | list) ::
           Ecto.Schema.t() | [Ecto.Schema.t()]
