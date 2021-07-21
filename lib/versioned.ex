@@ -250,8 +250,10 @@ defmodule Versioned do
         ]
       }
   """
-  @spec preload(Ecto.Schema.t() | [Ecto.Schema.t()], atom | list) ::
+  @spec preload(Ecto.Schema.t() | [Ecto.Schema.t()] | nil, atom | list | nil) ::
           Ecto.Schema.t() | [Ecto.Schema.t()]
+  def preload(nil, _), do: nil
+
   def preload(list_or_struct, preload) when is_list(list_or_struct) do
     Enum.map(list_or_struct, &preload(&1, preload))
   end
