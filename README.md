@@ -22,7 +22,7 @@ used to retrieve a list of entity versions, newest first.
 ```elixir
 def deps do
   [
-    {:versioned, "~> 0.1.0"}
+    {:versioned, "~> 0.2.0"}
   ]
 end
 ```
