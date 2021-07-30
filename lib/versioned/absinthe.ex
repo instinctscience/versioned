@@ -2,6 +2,7 @@ defmodule Versioned.Absinthe do
   @moduledoc """
   Helpers for Absinthe schemas.
   """
+  alias Versioned.Helpers
 
   @doc """
   Declare an object, versioned compliment, and interface, based off name `name`.
@@ -31,13 +32,15 @@ defmodule Versioned.Absinthe do
     Additionally, all fields declared in the block.
   """
   defmacro versioned_object(name, do: block) do
+    {:__block__, _m, lines_ast} = Helpers.normalize_block(block)
+
     quote do
       object unquote(name) do
         field :id, non_null(:id)
         field :version_id, :id
         field :inserted_at, non_null(:datetime)
         field :updated_at, non_null(:datetime)
-        unquote(block)
+        unquote(drop_version_fields(block) |> IO.inspect(label: "ONE"))
         interface(unquote(:"#{name}_base"))
       end
 
@@ -46,7 +49,7 @@ defmodule Versioned.Absinthe do
         field unquote(:"#{name}_id"), :id
         field :is_deleted, :boolean
         field :inserted_at, :datetime
-        unquote(block)
+        version_lines(unquote(lines_ast)) |> IO.inspect(label: "TWO")
         interface(unquote(:"#{name}_base"))
       end
 
@@ -60,5 +63,55 @@ defmodule Versioned.Absinthe do
         end)
       end
     end
+  end
+
+  defmacro version_field(name, type, opts \\ []) do
+    IO.inspect({name, type, opts}, label: "huhuhuh")
+    opts = Keyword.put(opts, :versioned, true)
+    IO.inspect(label: "BAM")
+
+    quote do
+      field unquote(name), unquote(type), unquote(opts)
+    end
+  end
+
+  @doc """
+  Convert a list of ast lines into ast lines to be used for the version object.
+
+  This will include all lines given for the `versioned_object`, but we remove
+  the `:versioned` option created by the `version_field` macro.
+  """
+  defmacro version_lines(lines_ast) do
+    lines_ast
+    |> Enum.map(fn
+      {:field, m, opts} -> {:field, m, Keyword.delete(opts, :versioned)}
+      other -> other
+    end)
+    |> Enum.reverse()
+    |> IO.inspect(label: "BOOM")
+  end
+
+  # Drop `version_field` lines for the base (non-version) object.
+  @spec drop_version_fields(Macro.t()) :: Macro.t()
+  defp drop_version_fields({:__block__, top_m, lines}) do
+    lines =
+      lines
+      |> Enum.reduce([], fn
+        {:field, _, opts} = tup, acc ->
+          case opts[:versionedd] do
+            true -> acc
+            _ -> [tup | acc]
+          end
+
+        {:version_field, _, _}, acc ->
+          acc
+
+        tup, acc ->
+          [tup | acc]
+      end)
+      |> Enum.reverse()
+
+    {:__block__, top_m, lines}
+    |> IO.inspect(label: "dropped")
   end
 end

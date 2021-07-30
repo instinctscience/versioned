@@ -222,11 +222,10 @@ defmodule Versioned do
   @spec with_version_id(Ecto.Queryable.t(), Ecto.Schema.t() | nil) :: Ecto.Query.t()
   def with_version_id(queryable, mod \\ nil) do
     mod = mod || queryable
-    ver_mod = Module.concat(mod, Version)
     singular_id = :"#{mod.__versioned__(:source_singular)}_id"
 
     versions =
-      from ver_mod,
+      from version_mod(mod),
         distinct: ^singular_id,
         order_by: {:desc, :inserted_at}
 

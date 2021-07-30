@@ -46,7 +46,8 @@ defmodule Versioned.Schema do
       * `:source_singular` - String `"#{@source_singular}"` will be returned.
       * `:has_many_fields` - List of field name atoms which are has_many.
       """
-      @spec __versioned__(:entity_fk | :source_singular) :: atom | [atom] | String.t()
+      @spec __versioned__(:entity_fk | :source_singular | :has_many_fields) ::
+              atom | [atom] | String.t()
       def __versioned__(:entity_fk), do: :"#{@source_singular}_id"
       def __versioned__(:source_singular), do: @source_singular
       def __versioned__(:has_many_fields), do: __MODULE__.Version.has_many_fields()
@@ -142,7 +143,7 @@ defmodule Versioned.Schema do
       quote do
         belongs_to :"#{unquote(field)}", unquote(entity), unquote(opts)
 
-        belongs_to :"#{unquote(field)}_version", Module.concat(unquote(entity), Version),
+        belongs_to :"#{unquote(field)}_version", Versioned.version_mod(unquote(entity)),
           define_field: false,
           foreign_key: :"#{unquote(field)}_id"
       end
@@ -158,7 +159,7 @@ defmodule Versioned.Schema do
       quote do
         @has_many_fields {unquote(field), unquote(key)}
 
-        ver_mod = Module.concat(unquote(entity), Version)
+        ver_mod = Versioned.version_mod(unquote(entity))
         foreign_key = unquote(field_opts[:foreign_key]) || :"#{@source_singular}_id"
 
         has_many unquote(key), ver_mod,
