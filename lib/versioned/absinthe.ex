@@ -31,11 +31,13 @@ defmodule Versioned.Absinthe do
   * `:inserted_at` - Timestamp when the version record was created.
   * Additionally, all fields declared in the block.
   """
-  defmacro versioned_object(name, do: block) do
+  defmacro versioned_object(name, opts \\ [], do: block) do
     {:__block__, _m, lines_ast} = Helpers.normalize_block(block)
 
+    {version_fields, opts} = Keyword.pop(opts, :version_fields)
+
     quote do
-      object unquote(name) do
+      object unquote(name), unquote(opts) do
         field :id, non_null(:id)
         field :version_id, :id
         field :inserted_at, non_null(:datetime)
@@ -49,6 +51,7 @@ defmodule Versioned.Absinthe do
         field unquote(:"#{name}_id"), :id
         field :is_deleted, :boolean
         field :inserted_at, :datetime
+        version_fields(unquote(version_fields))
         version_lines(unquote(lines_ast))
         interface(unquote(:"#{name}_base"))
       end
@@ -70,12 +73,20 @@ defmodule Versioned.Absinthe do
   defp drop_version_fields({:__block__, top_m, lines}) do
     lines = Enum.reject(lines, &match?({:version_field, _, _}, &1))
     {:__block__, top_m, lines}
-    |> IO.inspect(label: "dropped")
   end
 
-  # defmacro version_field(g, x, y) do
-  #   IO.inspect({g, x, y}, label: "uggg")
-  # end
+  defmacro version_fields(fields) do
+    do_field = fn key, type, opts ->
+      quote do
+        field unquote(key), unquote(type), unquote(opts)
+      end
+    end
+
+    Enum.map(fields || [], fn
+      {key, {type, opts}} -> do_field.(key, type, opts)
+      {key, type} -> do_field.(key, type, [])
+    end)
+  end
 
   @doc """
   Convert a list of ast lines into ast lines to be used for the version object.
@@ -87,6 +98,5 @@ defmodule Versioned.Absinthe do
       other, acc -> [other | acc]
     end)
     |> Enum.reverse()
-    |> IO.inspect(label: "BOOM")
   end
 end
