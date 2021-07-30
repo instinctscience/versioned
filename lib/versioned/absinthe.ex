@@ -40,7 +40,7 @@ defmodule Versioned.Absinthe do
         field :version_id, :id
         field :inserted_at, non_null(:datetime)
         field :updated_at, non_null(:datetime)
-        unquote(drop_version_fields(block) |> IO.inspect(label: "ONE"))
+        unquote(drop_version_fields(block))
         interface(unquote(:"#{name}_base"))
       end
 
@@ -49,7 +49,7 @@ defmodule Versioned.Absinthe do
         field unquote(:"#{name}_id"), :id
         field :is_deleted, :boolean
         field :inserted_at, :datetime
-        version_lines(unquote(lines_ast)) |> IO.inspect(label: "TWO")
+        version_lines(unquote(lines_ast))
         interface(unquote(:"#{name}_base"))
       end
 
@@ -65,53 +65,28 @@ defmodule Versioned.Absinthe do
     end
   end
 
-  defmacro version_field(name, type, opts \\ []) do
-    IO.inspect({name, type, opts}, label: "huhuhuh")
-    opts = Keyword.put(opts, :versioned, true)
-    IO.inspect(label: "BAM")
-
-    quote do
-      field unquote(name), unquote(type), unquote(opts)
-    end
-  end
-
-  @doc """
-  Convert a list of ast lines into ast lines to be used for the version object.
-
-  This will include all lines given for the `versioned_object`, but we remove
-  the `:versioned` option created by the `version_field` macro.
-  """
-  defmacro version_lines(lines_ast) do
-    lines_ast
-    |> Enum.map(fn
-      {:field, m, opts} -> {:field, m, Keyword.delete(opts, :versioned)}
-      other -> other
-    end)
-    |> Enum.reverse()
-    |> IO.inspect(label: "BOOM")
-  end
-
   # Drop `version_field` lines for the base (non-version) object.
   @spec drop_version_fields(Macro.t()) :: Macro.t()
   defp drop_version_fields({:__block__, top_m, lines}) do
-    lines =
-      lines
-      |> Enum.reduce([], fn
-        {:field, _, opts} = tup, acc ->
-          case opts[:versionedd] do
-            true -> acc
-            _ -> [tup | acc]
-          end
-
-        {:version_field, _, _}, acc ->
-          acc
-
-        tup, acc ->
-          [tup | acc]
-      end)
-      |> Enum.reverse()
-
+    lines = Enum.reject(lines, &match?({:version_field, _, _}, &1))
     {:__block__, top_m, lines}
     |> IO.inspect(label: "dropped")
+  end
+
+  # defmacro version_field(g, x, y) do
+  #   IO.inspect({g, x, y}, label: "uggg")
+  # end
+
+  @doc """
+  Convert a list of ast lines into ast lines to be used for the version object.
+  """
+  defmacro version_lines(lines_ast) do
+    lines_ast
+    |> Enum.reduce([], fn
+      {:version_field, m, a}, acc -> [{:field, m, a} | acc]
+      other, acc -> [other | acc]
+    end)
+    |> Enum.reverse()
+    |> IO.inspect(label: "BOOM")
   end
 end
