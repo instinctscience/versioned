@@ -22,7 +22,7 @@ defmodule Versioned.Helpers do
   def build_version(%mod{} = struct, opts) do
     with params when params != nil <- build_params(struct, opts) do
       mod
-      |> Module.concat(Version)
+      |> Versioned.version_mod()
       |> struct()
       |> Changeset.change(params)
     end
@@ -41,7 +41,7 @@ defmodule Versioned.Helpers do
         |> maybe_build_version_params(Keyword.put(opts, :deleted, true))
         |> case do
           nil -> []
-          params -> [struct(Module.concat(mod, Version), params)]
+          params -> [struct(Versioned.version_mod(mod), params)]
         end
       else
         []
@@ -103,7 +103,7 @@ defmodule Versioned.Helpers do
       :fields
       |> mod.__schema__()
       |> Enum.reject(&(&1 in [:id, :inserted_at, :updated_at]))
-      |> Enum.filter(&(&1 in Module.concat(mod, Version).__schema__(:fields)))
+      |> Enum.filter(&(&1 in Versioned.version_mod(mod).__schema__(:fields)))
       |> Map.new(&{&1, Map.get(struct, &1)})
       |> Map.put(:"#{mod.__versioned__(:source_singular)}_id", struct.id)
       |> Map.put(:is_deleted, Keyword.get(opts, :deleted, false))
