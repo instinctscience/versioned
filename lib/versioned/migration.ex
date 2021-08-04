@@ -103,4 +103,27 @@ defmodule Versioned.Migration do
       end
     end
   end
+
+  @doc """
+  Rename `orig_field` column in table `table_name` to a new name.
+
+  Note that this is indeed changing the field names as well in the
+  complimenting and otherwise immutable "versions" table.
+
+  ## Example
+
+      defmodule MyApp.Repo.Migrations.RenameFooToBar do
+        use Ecto.Migration
+
+        def change do
+          rename_versioned_column("my_table", :foo, to: :bar)
+        end
+      end
+  """
+  defmacro rename_versioned_column(table_name, orig_field, list) do
+    quote do
+      rename(table(unquote(table_name)), unquote(orig_field), unquote(list))
+      rename(table(unquote("#{table_name}_versions")), unquote(orig_field), unquote(list))
+    end
+  end
 end
