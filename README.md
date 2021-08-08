@@ -1,5 +1,11 @@
 # Versioned
 
+[![Module Version](https://img.shields.io/hexpm/v/versioned.svg)](https://hex.pm/packages/versioned)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/versioned/)
+[![Total Download](https://img.shields.io/hexpm/dt/versioned.svg)](https://hex.pm/packages/versioned)
+[![License](https://img.shields.io/hexpm/l/versioned.svg)](https://github.com/instinctscience/versioned/blob/master/LICENSE.md)
+[![Last Updated](https://img.shields.io/github/last-commit/instinctscience/versioned.svg)](https://github.com/instinctscience/versioned/commits/master)
+
 Versioned is a tool for enhancing `Ecto.Schema` modules to keep a full
 history of changes.
 
@@ -13,9 +19,10 @@ Records in the main table are mutable and operated on as normal, including
 deletes where the record is truly deleted.
 
 Versioned provides helpers for migrations and schemas. The `Versioned` module
-has `insert/2`, `update/2` and `delete/2` which should be used in place of
-your application's `Repo` for versioned tables. Finally, `history/3` can be
-used to retrieve a list of entity versions, newest first.
+has `Versioned.insert/2`, `Versioned.update/2` and `Versioned.delete/2` which
+should be used in place of your application's `Repo` for versioned tables.
+Finally, `Versioned.history/3` can be used to retrieve a list of entity
+versions, newest first.
 
 ## Installation
 
@@ -128,3 +135,9 @@ defmodule MyApp.Schema.Types.User do
   version_object :car_version, :car
 end
 ```
+
+## Copyright and License
+
+Copyright (c) 2021 Instinct Science
+
+This library is licensed under the [MIT License](./LICENSE.md).

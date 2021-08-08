@@ -5,9 +5,9 @@ defmodule Versioned do
   alias Ecto.{Changeset, Multi, Schema}
 
   @doc """
-  Inserts a versioned struct defined via Ecto.Schema or a changeset.
+  Inserts a versioned struct defined via `Ecto.Schema` or a changeset.
 
-  This function calls to the Ecto.Repo module twice -- once to insert the
+  This function calls to the `Ecto.Repo` module twice -- once to insert the
   record itself, and once to insert a copy as the first version in the
   versions table.
   """
@@ -34,7 +34,7 @@ defmodule Versioned do
   @doc """
   Updates a changeset (of a versioned schema) using its primary key.
 
-  This function uses the Ecto.Repo module, first calling `update/2` to update
+  This function uses the `Ecto.Repo` module, first calling `update/2` to update
   the record itself, and then `insert/1` to add a copy of the new version to
   the versions table.
   """

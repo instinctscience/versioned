@@ -13,6 +13,7 @@ defmodule Versioned.Migration do
           end
         end
       end
+
   """
   alias Versioned.Helpers
 

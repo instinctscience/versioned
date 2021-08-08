@@ -28,7 +28,7 @@ defmodule Versioned.Absinthe do
     record for which this version is based.
   * `:is_deleted` - Boolean indicating if the record was deleted as of this version.
   * `:inserted_at` - Timestamp when the version record was created.
-  * Additionally, all fields declared in the block.
+    Additionally, all fields declared in the block.
   """
   defmacro versioned_object(name, do: block) do
     quote do
