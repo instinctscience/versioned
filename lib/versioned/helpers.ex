@@ -20,7 +20,7 @@ defmodule Versioned.Helpers do
   """
   @spec build_version(Schema.t(), keyword) :: Changeset.t() | nil
   def build_version(%mod{} = struct, opts) do
-    with params when params != nil <- build_params(struct, opts) do
+    with %{} = params <- build_params(struct, opts) do
       mod
       |> Versioned.version_mod()
       |> struct()
@@ -61,7 +61,7 @@ defmodule Versioned.Helpers do
 
   @spec build_params(Schema.t(), keyword) :: map | nil
   defp build_params(%mod{} = struct, opts) do
-    with params when params != nil <- maybe_build_version_params(struct, opts) do
+    with %{} = params <- maybe_build_version_params(struct, opts) do
       Enum.reduce(mod.__schema__(:associations), params, fn assoc_name, acc ->
         :association |> mod.__schema__(assoc_name) |> do_build_params(struct, opts, acc)
       end)
