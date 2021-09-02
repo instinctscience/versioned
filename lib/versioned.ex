@@ -235,6 +235,26 @@ defmodule Versioned do
       select_merge: %{version_id: v.id}
   end
 
+  @doc "Given a versioned `struct`, populate its `:version_id` field."
+  @spec add_version_id(map) :: map
+  def add_version_id(%mod{id: id} = struct) do
+    version_mod = version_mod(mod)
+    fk = mod.__versioned__(:entity_fk)
+
+    query =
+      from(v in version_mod,
+        where: ^[{fk, id}],
+        order_by: [desc: :inserted_at],
+        limit: 1,
+        select: %{version_id: v.id}
+      )
+
+    case repo().one(query) do
+      %{version_id: v_id} -> %{struct | version_id: v_id}
+      _ -> struct
+    end
+  end
+
   @doc """
   Preload version associations.
 
