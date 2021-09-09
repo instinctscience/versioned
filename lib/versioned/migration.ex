@@ -115,7 +115,7 @@ defmodule Versioned.Migration do
   ## Example
 
       defmodule MyApp.Repo.Migrations.RenameFooToBar do
-        use Ecto.Migration
+        use Versioned.Migration
 
         def change do
           rename_versioned_column("my_table", :foo, to: :bar)
@@ -130,17 +130,15 @@ defmodule Versioned.Migration do
   end
 
   @doc """
-  Modify `orig_field` column in table `table_name`.
+  Modify `orig_field` column in table `table_name` and its versioned
+  counterpart.
 
   See `Ecto.Migration.modify/3`.
-
-  Note that this is indeed repeating the modification in the
-  complimenting and generally immutable "versions" table.
 
   ## Example
 
       defmodule MyApp.Repo.Migrations.RenameFooToBar do
-        use Ecto.Migration
+        use Versioned.Migration
 
         def change do
           modify_versioned_column("my_table", :foo, :text, nil: true)
@@ -155,6 +153,29 @@ defmodule Versioned.Migration do
 
       alter table(unquote("#{table_name}_versions")) do
         modify unquote(column), unquote(type), unquote(opts)
+      end
+    end
+  end
+
+  @doc """
+  Removes a column from a table and its versioned counterpart.
+
+  See `Ecto.Migration.remove/1`.
+
+  ## Example
+
+      defmodule MyApp.Repo.Migrations.RemoveFooToBar do
+        use Versioned.Migration
+
+        def change do
+          remove_versioned_column("my_table", :foo)
+        end
+      end
+  """
+  defmacro remove_versioned_column(table_name, column) do
+    quote do
+      alter table(unquote(table_name)) do
+        remove unquote(column)
       end
     end
   end
