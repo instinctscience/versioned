@@ -6,7 +6,7 @@ defmodule Versioned.Test.Person do
 
   versioned_schema "people" do
     field :name, :string
-    belongs_to :car, Car, type: :binary_id
+    belongs_to :car, Car, type: :binary_id, versioned: true
     has_many :fancy_hobbies, Hobby, on_replace: :delete, versioned: :fancy_hobby_versions
   end
 

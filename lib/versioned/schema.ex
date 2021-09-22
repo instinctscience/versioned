@@ -138,14 +138,23 @@ defmodule Versioned.Schema do
   defp do_version_line({:belongs_to, m, [field, entity]}, acc),
     do: do_version_line({:belongs_to, m, [field, entity, []]}, acc)
 
-  defp do_version_line({:belongs_to, _m, [field, entity, opts]}, acc) do
-    line =
+  defp do_version_line({:belongs_to, _m, [field, entity, field_opts]} = orig_ast, acc) do
+    do_belongs_to = fn key ->
       quote do
-        belongs_to :"#{unquote(field)}", unquote(entity), unquote(opts)
+        belongs_to unquote(key),
+                   unquote(entity),
+                   unquote(Keyword.delete(field_opts, :versioned))
 
-        belongs_to :"#{unquote(field)}_version", Versioned.version_mod(unquote(entity)),
+        belongs_to :"#{unquote(key)}_version", Versioned.version_mod(unquote(entity)),
           define_field: false,
           foreign_key: :"#{unquote(field)}_id"
+      end
+    end
+
+    line =
+      case field_opts[:versioned] do
+        v when v in [nil, false] -> orig_ast
+        _ -> do_belongs_to.(field)
       end
 
     [line | acc]
@@ -203,6 +212,9 @@ defmodule Versioned.Schema do
       Enum.map(lines, fn
         {:has_many, m, [a, b, opts]} ->
           {:has_many, m, [a, b, Keyword.delete(opts, :versioned)]}
+
+        {:belongs_to, m, [a, b, opts]} ->
+          {:belongs_to, m, [a, b, Keyword.delete(opts, :versioned)]}
 
         other ->
           other

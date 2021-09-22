@@ -6,7 +6,7 @@ defmodule Versioned.Test.Hobby do
 
   versioned_schema "hobbies" do
     field :name, :string
-    belongs_to :person, Person, type: :binary_id
+    belongs_to :person, Person, type: :binary_id, versioned: true
   end
 
   def changeset(car_or_changeset, params) do
