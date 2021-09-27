@@ -62,7 +62,7 @@ defmodule Versioned.Schema do
       if @primary_key_uuid do
         @primary_key {:id, :binary_id, autogenerate: true}
       else
-        @primary_key {:id, :id, []}
+        @primary_key {:id, :id, autogenerate: true}
       end
 
       schema unquote(source) do
