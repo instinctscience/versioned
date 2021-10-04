@@ -59,7 +59,13 @@ defmodule Versioned.Schema do
       @spec __versioned__(:has_many_field, atom) :: atom
       def __versioned__(:has_many_field, field), do: __MODULE__.Version.has_many_field(field)
 
-      @primary_key {:id, :binary_id, autogenerate: true}
+      @primary_key_uuid Module.get_attribute(__MODULE__, :primary_key_type) != :integer
+      if @primary_key_uuid do
+        @primary_key {:id, :binary_id, autogenerate: true}
+      else
+        @primary_key {:id, :id, autogenerate: true}
+      end
+
       schema unquote(source) do
         field :version_id, :binary_id, virtual: true
         has_many :versions, __MODULE__.Version
@@ -73,6 +79,13 @@ defmodule Versioned.Schema do
 
         @before_compile {unquote(__MODULE__), :version_before_compile}
         @source_singular Module.get_attribute(unquote(mod), :source_singular)
+
+        parent_primary_key_type =
+          if Module.get_attribute(unquote(mod), :primary_key_uuid) do
+            :binary_id
+          else
+            :integer
+          end
 
         Module.register_attribute(__MODULE__, :has_many_fields, accumulate: true)
 
@@ -94,7 +107,7 @@ defmodule Versioned.Schema do
         @primary_key {:id, :binary_id, autogenerate: true}
         schema "#{unquote(source)}_versions" do
           field :is_deleted, :boolean
-          belongs_to :"#{@source_singular}", unquote(mod), type: :binary_id
+          belongs_to :"#{@source_singular}", unquote(mod), type: parent_primary_key_type
           timestamps type: :utc_datetime_usec, updated_at: false
           version_lines(unquote(lines_ast))
         end
