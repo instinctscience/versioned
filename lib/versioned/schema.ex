@@ -10,8 +10,10 @@ defmodule Versioned.Schema do
 
   ## Additional `belongs_to` Options
 
-    * `:versioned` - If `true`, an additional field of the same name but with
-      `_version` appended will be created.
+    * `:versioned` - If `true`, the version schema will include an extra field
+      of the same name but with `_version` appended. The parent record which
+      existed when this version was created can be loaded into this field via
+      `Versioned.preload/2`.
 
   Example:
 
@@ -21,14 +23,29 @@ defmodule Versioned.Schema do
 
   ## Additional `has_many` Options
 
-    * `:versioned` - If `true`, an additional field of the same name but with
-      `_version` appended will be created. If defined as another truthy atom,
-      then that field name will be used instead.
+    * `:versioned` - If `true`, the version schema will include an extra field
+      of the same name but with `_version` appended. If defined as another
+      truthy atom, then that field name will be used instead. The child records
+      which existed when this version was created can be loaded into this field
+      via `Versioned.preload/2`.
 
   Example:
 
       versioned_schema "cars" do
         has_many :people, Person, on_replace: :delete, versioned: :person_versions
+      end
+
+  ## I already have an integer primary key.
+
+  While Versioned generally operates with binary_ids, it is possible to adopt it
+  for an existing table which uses integers. First, you'll need to create a
+  migration to create the versions table.  Then, define your own `@primary_key`
+  attribute. Versioned will preserve it, but note that the versions table must
+  still use UUIDs.
+
+      @primary_key {:id, :id, autogenerate: true}
+      versioned_schema "cars" do
+        ...
       end
 
   ## Example
@@ -88,8 +105,8 @@ defmodule Versioned.Schema do
       @spec __versioned__(:has_many_field, atom) :: atom
       def __versioned__(:has_many_field, field), do: __MODULE__.Version.has_many_field(field)
 
-      # Allow the using module to define @primary_key as an exit hatch.
-      unless Module.has_attribute?(__MODULE__, :primary_key) do
+      # Using module can set @primary_key as an exit hatch, but uuid by default.
+      unless Module.get_attribute(__MODULE__, :primary_key) do
         @primary_key {:id, :binary_id, autogenerate: true}
       end
 
@@ -107,12 +124,8 @@ defmodule Versioned.Schema do
         @before_compile {unquote(__MODULE__), :version_before_compile}
         @source_singular Module.get_attribute(unquote(mod), :source_singular)
 
-        parent_primary_key_type =
-          if Module.get_attribute(unquote(mod), :primary_key_uuid) do
-            :binary_id
-          else
-            :integer
-          end
+        {_id_key, parent_primary_key_type, _opts} =
+          Module.get_attribute(unquote(mod), :primary_key)
 
         Module.register_attribute(__MODULE__, :has_many_fields, accumulate: true)
 
