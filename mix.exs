@@ -74,7 +74,7 @@ defmodule Versioned.MixProject do
     [
       extras: [
         "CHANGELOG.md": [],
-        "LICENSE.md": [title: "License"],
+        "LICENSE": [title: "License"],
         "README.md": [title: "Overview"]
       ],
       main: "readme",

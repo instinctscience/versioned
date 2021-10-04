@@ -3,7 +3,7 @@
 [![Module Version](https://img.shields.io/hexpm/v/versioned.svg)](https://hex.pm/packages/versioned)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/versioned/)
 [![Total Download](https://img.shields.io/hexpm/dt/versioned.svg)](https://hex.pm/packages/versioned)
-[![License](https://img.shields.io/hexpm/l/versioned.svg)](https://github.com/instinctscience/versioned/blob/master/LICENSE.md)
+[![License](https://img.shields.io/hexpm/l/versioned.svg)](https://github.com/instinctscience/versioned/blob/master/LICENSE)
 [![Last Updated](https://img.shields.io/github/last-commit/instinctscience/versioned.svg)](https://github.com/instinctscience/versioned/commits/master)
 
 Versioned is a tool for enhancing `Ecto.Schema` modules to keep a full
@@ -143,4 +143,4 @@ end
 
 Copyright (c) 2021 Instinct Science
 
-This library is licensed under the [MIT License](./LICENSE.md).
+This library is licensed under the [MIT License](./LICENSE).
