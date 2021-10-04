@@ -98,15 +98,18 @@ pieces which have not yet been explored.
 
 ### Migration Helper: Add Column on a Versioned Table
 
-Later, add a new column in a migration with this convenience macro which
-appropriately adds the field to both tables.
+Later, manage versioned tables with these convenience macros which appropriately
+work on the field in both tables.
 
 ```elixir
 defmodule MyApp.Repo.Migrations.AddCarColor do
   use Versioned.Migration
 
   def change do
-    add_versioned_column(:cars, :color, :string)
+    add_versioned_column("cars", :color, :string)
+    rename_versioned_column("cars", :color, to: :color_info)
+    modify_versioned_column("cars", :color_info, :text, null: false)
+    remove_versioned_column("cars", :color_info)
   end
 end
 ```

@@ -6,7 +6,7 @@ defmodule Versioned.Test.Car do
 
   versioned_schema "cars" do
     field :name, :string
-    has_many :people, Person, on_replace: :delete, versioned: true
+    has_many :people, Person, on_replace: :delete, versioned: :person_versions
   end
 
   def changeset(car_or_changeset, params) do

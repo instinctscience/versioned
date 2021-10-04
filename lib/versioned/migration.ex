@@ -142,18 +142,18 @@ defmodule Versioned.Migration do
         use Versioned.Migration
 
         def change do
-          modify_versioned_column("my_table", :foo, :text, nil: true)
+          modify_versioned_column("my_table", :foo, :text, null: true)
         end
       end
   """
   defmacro modify_versioned_column(table_name, column, type, opts \\ []) do
     quote do
       alter table(unquote(table_name)) do
-        modify unquote(column), unquote(type), unquote(opts)
+        modify(unquote(column), unquote(type), unquote(opts))
       end
 
       alter table(unquote("#{table_name}_versions")) do
-        modify unquote(column), unquote(type), unquote(opts)
+        modify(unquote(column), unquote(type), unquote(opts))
       end
     end
   end
@@ -176,7 +176,7 @@ defmodule Versioned.Migration do
   defmacro remove_versioned_column(table_name, column) do
     quote do
       alter table(unquote(table_name)) do
-        remove unquote(column)
+        remove(unquote(column))
       end
     end
   end

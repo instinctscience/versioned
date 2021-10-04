@@ -30,6 +30,17 @@ defmodule Versioned.Absinthe do
   * `:is_deleted` - Boolean indicating if the record was deleted as of this version.
   * `:inserted_at` - Timestamp when the version record was created.
     Additionally, all fields declared in the block.
+
+  ## Declaring Fields for Version Object Only
+
+  In order for a field to appear only in the version object, use the
+  `:version_fields` option in the (optional) keyword list before the do block:
+
+      versioned_object :car,
+        version_fields: [person_versions: non_null(list_of(non_null(:person_version)))] do
+        ...
+      end
+
   """
   defmacro versioned_object(name, opts \\ [], do: block) do
     {:__block__, _m, lines_ast} = Helpers.normalize_block(block)

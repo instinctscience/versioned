@@ -2,6 +2,35 @@ defmodule Versioned.Schema do
   @moduledoc """
   Enhances `Ecto.Schema` modules to track a full history of changes.
 
+  The `versioned_schema` macro works just like `schema` in `Ecto.Schema` but it
+  also builds an `OriginalModule.Version` schema module as well to represent a
+  version at a particular point in time.
+
+  In addition to options allowed by `Ecto.Schema`, new ones are also allowed.
+
+  ## Additional `belongs_to` Options
+
+    * `:versioned` - If `true`, an additional field of the same name but with
+      `_version` appended will be created.
+
+  Example:
+
+      versioned_schema "people" do
+        belongs_to :car, Car, type: :binary_id, versioned: true
+      end
+
+  ## Additional `has_many` Options
+
+    * `:versioned` - If `true`, an additional field of the same name but with
+      `_version` appended will be created. If defined as another truthy atom,
+      then that field name will be used instead.
+
+  Example:
+
+      versioned_schema "cars" do
+        has_many :people, Person, on_replace: :delete, versioned: :person_versions
+      end
+
   ## Example
 
       defmodule MyApp.Car do
@@ -59,11 +88,9 @@ defmodule Versioned.Schema do
       @spec __versioned__(:has_many_field, atom) :: atom
       def __versioned__(:has_many_field, field), do: __MODULE__.Version.has_many_field(field)
 
-      @primary_key_uuid Module.get_attribute(__MODULE__, :primary_key_type) != :integer
-      if @primary_key_uuid do
+      # Allow the using module to define @primary_key as an exit hatch.
+      unless Module.has_attribute?(__MODULE__, :primary_key) do
         @primary_key {:id, :binary_id, autogenerate: true}
-      else
-        @primary_key {:id, :id, autogenerate: true}
       end
 
       schema unquote(source) do
@@ -165,10 +192,9 @@ defmodule Versioned.Schema do
     end
 
     line =
-      case field_opts[:versioned] do
-        v when v in [nil, false] -> orig_ast
-        _ -> do_belongs_to.(field)
-      end
+      if field_opts[:versioned] in [nil, false],
+        do: orig_ast,
+        else: do_belongs_to.(field)
 
     [line | acc]
   end
