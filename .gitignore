@@ -22,8 +22,8 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 versioned-*.tar
 
-
-# Temporary files for e.g. tests
+# Temporary files for e.g. tests.
 /tmp
 
+# Misc.
 /priv/plts/
