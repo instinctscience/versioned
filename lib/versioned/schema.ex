@@ -40,8 +40,8 @@ defmodule Versioned.Schema do
   While Versioned generally operates with binary_ids, it is possible to adopt it
   for an existing table which uses integers. First, you'll need to create a
   migration to create the versions table.  Then, define your own `@primary_key`
-  attribute. Versioned will preserve it, but note that the versions table must
-  still use UUIDs.
+  attribute. Versioned will preserve it. (Note that the versions table must
+  still use UUIDs.)
 
       @primary_key {:id, :id, autogenerate: true}
       versioned_schema "cars" do
