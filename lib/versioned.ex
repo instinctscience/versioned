@@ -2,7 +2,7 @@ defmodule Versioned do
   @moduledoc "Tools for operating on versioned records."
   import Ecto.Query, except: [preload: 2]
   import Versioned.Helpers
-  alias Ecto.{Changeset, Multi, Schema}
+  alias Ecto.{Changeset, Multi, Queryable, Schema}
 
   @doc """
   Inserts a versioned struct defined via `Ecto.Schema` or a changeset.
@@ -135,13 +135,19 @@ defmodule Versioned do
   end
 
   @doc """
-  Get a version by its (version) id where `module` is the non-version schema.
-
-  Options can include anything used by the repo's `get/3`.
+  Proxy function for the given repo module's `get/3`.
   """
   @spec get(module, any, keyword) :: Schema.t() | nil
   def get(module, ver_id, opts \\ []) do
-    repo().get(version_mod(module), ver_id, opts)
+    repo().get(module, ver_id, opts)
+  end
+
+  @doc """
+  Proxy function for the given repo module's `one/3`.
+  """
+  @spec one(Queryable.t(), keyword) :: Schema.t() | nil
+  def one(queryable, opts \\ []) do
+    repo().one(queryable, opts)
   end
 
   @doc """
@@ -163,7 +169,7 @@ defmodule Versioned do
 
   * `:limit` - Max number of records to return. Default: return all records.
   """
-  @spec history_query(module, any, keyword) :: Ecto.Queryable.t()
+  @spec history_query(module, any, keyword) :: Queryable.t()
   def history_query(module, id, opts \\ []) do
     version_mod = version_mod(module)
     fk = module.__versioned__(:entity_fk)
@@ -219,7 +225,7 @@ defmodule Versioned do
   `mod`, if defined, should be the entity module name itself. If not defined,
   `query` must be this module name and not any type of query.
   """
-  @spec with_version_id(Ecto.Queryable.t(), Ecto.Schema.t() | nil) :: Ecto.Query.t()
+  @spec with_version_id(Queryable.t(), Ecto.Schema.t() | nil) :: Ecto.Query.t()
   def with_version_id(queryable, mod \\ nil) do
     mod = mod || queryable
     singular_id = :"#{mod.__versioned__(:source_singular)}_id"
