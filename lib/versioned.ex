@@ -143,6 +143,14 @@ defmodule Versioned do
   end
 
   @doc """
+  Proxy function for the given repo module's `get_by/3`.
+  """
+  @spec get_by(Queryable.t(), keyword | map(), keyword) :: Schema.t() | nil
+  def get_by(queryable, clauses, opts \\ []) do
+    repo().get_by(queryable, clauses, opts)
+  end
+
+  @doc """
   Proxy function for the given repo module's `one/3`.
   """
   @spec one(Queryable.t(), keyword) :: Schema.t() | nil
