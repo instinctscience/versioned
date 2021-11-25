@@ -1,72 +1,34 @@
 defmodule Versioned do
   @moduledoc "Tools for operating on versioned records."
   import Ecto.Query, except: [preload: 2]
-  import Versioned.Helpers
-  alias Ecto.{Changeset, Multi, Queryable, Schema}
+  alias Ecto.{Changeset, Queryable, Schema}
 
   @doc """
-  Inserts a versioned struct defined via `Ecto.Schema` or a changeset.
-
-  This function calls to the `Ecto.Repo` module twice -- once to insert the
-  record itself, and once to insert a copy as the first version in the
-  versions table.
+  Inserts a versioned struct defined via Ecto.Schema or a changeset.
   """
   @spec insert(Schema.t() | Changeset.t(), keyword) ::
           {:ok, Schema.t()}
           | {:error, any()}
           | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def insert(struct_or_changeset, opts \\ []) do
-    cs = Changeset.change(struct_or_changeset)
-    opts = Keyword.merge(opts, change: true, inserted_at: DateTime.utc_now())
-
-    Multi.new()
-    |> Multi.insert(:record, cs, opts)
-    |> Multi.run(:version, fn repo, %{record: record} ->
-      case build_version(record, opts) do
-        nil -> {:ok, nil}
-        changeset -> repo.insert(changeset)
-      end
-    end)
+    Ecto.Multi.new()
+    |> Versioned.Multi.insert(:the, struct_or_changeset, opts)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
   end
 
   @doc """
-  Updates a changeset (of a versioned schema) using its primary key.
-
-  This function uses the `Ecto.Repo` module, first calling `update/2` to update
-  the record itself, and then `insert/1` to add a copy of the new version to
-  the versions table.
+  Updates a versioned changeset using its primary key.
   """
   @spec update(Changeset.t(), keyword) ::
           {:ok, Schema.t()}
           | {:error, any()}
           | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def update(changeset, opts \\ []) do
-    opts = Keyword.merge(opts, change: changeset, inserted_at: DateTime.utc_now())
-
-    Multi.new()
-    |> Multi.update(:record, changeset, opts)
-    |> Multi.run(:version, fn repo, %{record: record} ->
-      v = build_version(record, opts)
-      if v, do: repo.insert(v), else: {:ok, nil}
-    end)
-    |> Multi.run(:deletes, fn repo, _changes ->
-      do_update_deletes(repo, changeset, opts)
-    end)
+    Ecto.Multi.new()
+    |> Versioned.Multi.update(:the, changeset, opts)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
-  end
-
-  @spec do_update_deletes(Ecto.Repo.t(), Changeset.t(), keyword) ::
-          {:ok, [Schema.t()]} | {:error, Changeset.t()}
-  defp do_update_deletes(repo, changeset, opts) do
-    Enum.reduce_while(deleted_versions(changeset, opts), {:ok, []}, fn deleted, {:ok, acc} ->
-      case repo.insert(deleted) do
-        {:ok, del} -> {:cont, {:ok, [del | acc]}}
-        {:error, _} = err -> {:halt, err}
-      end
-    end)
   end
 
   @doc """
@@ -77,11 +39,8 @@ defmodule Versioned do
           | {:error, any()}
           | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
   def delete(struct_or_changeset, opts \\ []) do
-    cs = Changeset.change(struct_or_changeset)
-
-    Multi.new()
-    |> Multi.delete(:record, cs, opts)
-    |> Multi.insert(:version, &build_version(&1.record, change: true, deleted: true), opts)
+    Ecto.Multi.new()
+    |> Versioned.Multi.delete(:the, struct_or_changeset, opts)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
   end
@@ -91,11 +50,11 @@ defmodule Versioned do
   @spec maybe_add_version_id_and_return_record(tuple) ::
           {:ok, Schema.t()} | {:error, Changeset.t()} | {:error, String.t()}
   defp maybe_add_version_id_and_return_record(
-         {:ok, %{record: %{version_id: _} = record, version: %{id: version_id}}}
+         {:ok, %{"the_record" => %{version_id: _} = record, "the_version" => %{id: version_id}}}
        ),
        do: {:ok, %{record | version_id: version_id}}
 
-  defp maybe_add_version_id_and_return_record({:ok, %{record: record}}), do: {:ok, record}
+  defp maybe_add_version_id_and_return_record({:ok, %{"the_record" => record}}), do: {:ok, record}
 
   defp maybe_add_version_id_and_return_record({:error, _, %Ecto.Changeset{} = changeset, _}),
     do: {:error, changeset}
@@ -145,7 +104,7 @@ defmodule Versioned do
   @doc """
   Proxy function for the given repo module's `get_by/3`.
   """
-  @spec get_by(Queryable.t(), keyword | map(), keyword) :: Schema.t() | nil
+  @spec get_by(Queryable.t(), keyword | map, keyword) :: Schema.t() | nil
   def get_by(queryable, clauses, opts \\ []) do
     repo().get_by(queryable, clauses, opts)
   end

@@ -24,7 +24,7 @@ defmodule VersionedTest do
              people: [%{id: ^person_id, name: "Wendy"}]
            } = Repo.one(from(Car, where: [id: ^car_id], preload: :people))
 
-    assert %{car_id: ^car_id, name: "Toad"} = Versioned.get(Car, ver_id)
+    assert %{car_id: ^car_id, name: "Toad"} = Versioned.get(Car.Version, ver_id)
   end
 
   describe "deletion" do
