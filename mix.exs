@@ -2,7 +2,7 @@ defmodule Versioned.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/instinctscience/versioned"
-  @version "0.2.1"
+  @version "0.3.0"
 
   def project do
     [
