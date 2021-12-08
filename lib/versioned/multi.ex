@@ -93,4 +93,23 @@ defmodule Versioned.Multi do
     |> Multi.delete("#{name}_record", cs, opts)
     |> Multi.insert("#{name}_version", build_version_fn, opts)
   end
+
+  @doc """
+  To be invoked after `Repo.transaction/1`. If successful, the id of "_version"
+  will be attached to the `:version_id` field of "_record".
+  """
+  @spec add_version_to_record({:ok, map} | any, String.t()) :: {:ok, map} | any
+  def add_version_to_record({:ok, changes}, name) do
+    record_key = "#{name}_record"
+
+    case {Map.get(changes, record_key), Map.get(changes, "#{name}_version")} do
+      {%{version_id: _}, %{id: version_id}} ->
+        {:ok, put_in(changes, [record_key, :version_id], version_id)}
+
+      _ ->
+        {:ok, changes}
+    end
+  end
+
+  def add_version_to_record(error, _), do: error
 end

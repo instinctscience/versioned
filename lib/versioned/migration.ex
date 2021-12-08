@@ -31,6 +31,7 @@ defmodule Versioned.Migration do
   defmacro create_versioned_table(name_plural, opts \\ [], do: block) do
     name_singular = Keyword.get(opts, :singular, String.trim_trailing("#{name_plural}", "s"))
     {:__block__, mid, lines} = Helpers.normalize_block(block)
+    to_block = fn lines -> {:__block__, mid, lines} end
 
     # For versions table, rewrite references to avoid database constraints:
     # If a record is deleted, we don't want version records with its foreign
@@ -39,7 +40,7 @@ defmodule Versioned.Migration do
       lines
       |> Enum.reduce([], &do_version_line/2)
       |> Enum.reverse()
-      |> (fn lines -> {:__block__, mid, lines} end).()
+      |> to_block.()
 
     quote do
       create table(unquote(name_plural), primary_key: false) do
@@ -178,6 +179,39 @@ defmodule Versioned.Migration do
       alter table(unquote(table_name)) do
         remove(unquote(column))
       end
+
+      alter table(unquote("#{table_name}_versions")) do
+        remove(unquote(column))
+      end
+    end
+  end
+
+  @doc """
+  Renames a table table and its versioned counterpart.
+
+  Note: If the table is `cars`, then `cars_versions` has a `car_id` field. If
+  the table is being renamed to `automobiles`, then after using this macro,
+  you'll want to also do something like the following in order to rename the
+  `car_id` field in the versions table to `automobile_id`.
+
+      rename table("automobiles_versions"), :car_id, to: :automobile_id
+
+  See `Ecto.Migration.rename/2`.
+
+  ## Example
+
+      defmodule MyApp.Repo.Migrations.RenameMyTable do
+        use Versioned.Migration
+
+        def change do
+          rename_versioned_table("my_table", "my_new_table")
+        end
+      end
+  """
+  defmacro rename_versioned_table(orig_name, new_name) do
+    quote do
+      rename(table(unquote(orig_name)), to: table(unquote(new_name)))
+      rename(table("#{unquote(orig_name)}_versions"), to: table("#{unquote(new_name)}_versions"))
     end
   end
 end

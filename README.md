@@ -102,7 +102,7 @@ Later, manage versioned tables with these convenience macros which appropriately
 work on the field in both tables.
 
 ```elixir
-defmodule MyApp.Repo.Migrations.AddCarColor do
+defmodule MyApp.Repo.Migrations.DoCarChangeThings do
   use Versioned.Migration
 
   def change do
@@ -110,6 +110,8 @@ defmodule MyApp.Repo.Migrations.AddCarColor do
     rename_versioned_column("cars", :color, to: :color_info)
     modify_versioned_column("cars", :color_info, :text, null: false)
     remove_versioned_column("cars", :color_info)
+
+    rename_versioned_table("cars", "automobiles")
   end
 end
 ```

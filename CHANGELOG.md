@@ -9,6 +9,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.3.0] - 2021-11-29
 ## Added
 
+- `Versioned.Migration.rename_versioned_table`
+
+## Changed
+
+- Fixed `Versioned.Migration.remove_versioned_column`.
+
+## [0.3.0] - 2021-11-29
+## Added
+
 - `Versioned.get_by/2`
 - `Versioned.one/2`
 - `Versioned.Multi` now exposes operations for `Ecto.Multi` transactions.

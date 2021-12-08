@@ -2,7 +2,7 @@ defmodule Versioned.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/instinctscience/versioned"
-  @version "0.3.0"
+  @version "0.3.1"
 
   def project do
     [
@@ -51,7 +51,8 @@ defmodule Versioned.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       lint: [
-        "compile --warnings-as-errors",
+        "compile",
+        # "compile --warnings-as-errors",
         "format --check-formatted",
         "credo"
       ]

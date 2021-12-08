@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 config :versioned,
   ecto_repos: [Versioned.Test.Repo],
