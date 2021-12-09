@@ -15,6 +15,13 @@ update, or delete event. When a record is deleted, the versions table entry
 has the record in its final state, and the special `is_deleted` field will be
 set to true.
 
+Importantly, the versions table features NO foreign key constraints. This means
+a couple of things. First, the auto-generated foreign key column in the versions
+table doesn't depend on the record in the main table, which may be deleted.
+Secondly, any field you define with `Ecto.Migration.references/2` will only have
+the constraint for the main table. Here again, the referenced records can be
+deleted without worry of version records.
+
 Records in the main table are mutable and operated on as normal, including
 deletes where the record is truly deleted.
 
