@@ -62,8 +62,12 @@ defmodule Versioned.Migration do
   end
 
   # Strip foreign key constraints for versions tables.
-  def versions_type(%Ecto.Migration.Reference{type: type}), do: type
-  def versions_type(other), do: other
+  def versions_type(%Ecto.Migration.Reference{type: type}), do: fix_type(type)
+  def versions_type(other), do: fix_type(other)
+
+  defp fix_type(:bigserial), do: :bigint
+  defp fix_type(nil), do: :bigint
+  defp fix_type(other), do: other
 
   # Take the original migration ast and attach to the accumulator the
   # corresponding ast to use for the version table.
@@ -73,7 +77,7 @@ defmodule Versioned.Migration do
   end
 
   defp do_version_line({:add, m, [foreign_key, {:references, _m2, ref_args}, field_opts]}, acc) do
-    type = Enum.at(ref_args, 1, [])[:type] || :bigserial
+    type = fix_type(Enum.at(ref_args, 1, [])[:type])
     [{:add, m, [foreign_key, type, field_opts]} | acc]
   end
 
