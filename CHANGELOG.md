@@ -6,7 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2021-11-29
+## [0.3.2] - 2021-12-09
+## Changed
+
+- Fix for `add_versioned_column/4`.
+- Better clarity and bugfixes around the fact that there should be no foreign
+  key constraints in the versions tables. If you are using this library in
+  production, you should be aware that your versions tables may have foreign key
+  constraints where they were not intended. If you have any foreign keys in your
+  versions tables, use something like the following for each in a new `change/0`
+  migration function to get back on track.
+
+```
+execute(
+  "ALTER TABLE cars_versions DROP CONSTRAINT cars_versions_garage_id_fkey;",
+  "ALTER TABLE cars_versions ADD CONSTRAINT cars_versions_garage_id_fkey FOREIGN KEY (garage_id) REFERENCES garages(id);"
+)
+```
+
+## [0.3.1] - 2021-12-08
 ## Added
 
 - `Versioned.Migration.rename_versioned_table`

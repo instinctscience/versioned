@@ -61,6 +61,14 @@ defmodule Versioned.Migration do
     end
   end
 
+  # Strip foreign key constraints for versions tables.
+  def versions_type(%Ecto.Migration.Reference{type: type}), do: fix_type(type)
+  def versions_type(other), do: fix_type(other)
+
+  defp fix_type(:bigserial), do: :bigint
+  defp fix_type(nil), do: :bigint
+  defp fix_type(other), do: other
+
   # Take the original migration ast and attach to the accumulator the
   # corresponding ast to use for the version table.
   @spec do_version_line(Macro.t(), Macro.t()) :: Macro.t()
@@ -68,40 +76,29 @@ defmodule Versioned.Migration do
     do_version_line({:add, a, [b, tup, []]}, acc)
   end
 
-  defp do_version_line(
-         {:add, m, [foreign_key, {:references, _m2, [_plural, ref_opts]}, field_opts]},
-         acc
-       ) do
-    # Drop reference in favor if plain ole field of the same type.
-    # This way, referenced records can be deleted while the referencing version
-    # records remain intact.
-    type = Keyword.get(ref_opts, :type, :uuid)
-    line = {:add, m, [foreign_key, type, field_opts]}
-
-    [line | acc]
+  defp do_version_line({:add, m, [foreign_key, {:references, _m2, ref_args}, field_opts]}, acc) do
+    type = fix_type(Enum.at(ref_args, 1, [])[:type])
+    [{:add, m, [foreign_key, type, field_opts]} | acc]
   end
 
   defp do_version_line(line, acc) do
     [line | acc]
   end
 
-  @doc "Add a new column to both the main table and the versions table."
-  defmacro add_versioned_column(table_name, name, type, opts \\ []) do
-    {singular, opts} = Keyword.pop(opts, :singular, to_string(table_name))
+  @doc """
+  Add a new column to both the main table and the versions table.
 
-    quote bind_quoted: [
-            table_name: table_name,
-            name: name,
-            opts: opts,
-            type: type,
-            singular: singular
-          ] do
-      alter table(table_name) do
-        add(name, type, opts)
+  Any foreign key constraint via `references/2` will be stripped for
+  the versions table.
+  """
+  defmacro add_versioned_column(table_name, name, type, opts \\ []) do
+    quote do
+      alter table(unquote(table_name)) do
+        add(unquote(name), unquote(type), unquote(opts))
       end
 
-      alter table(:"#{singular}_versions") do
-        add(name, type, opts)
+      alter table("#{unquote(table_name)}_versions") do
+        add(unquote(name), versions_type(unquote(type)), unquote(opts))
       end
     end
   end
@@ -154,7 +151,7 @@ defmodule Versioned.Migration do
       end
 
       alter table(unquote("#{table_name}_versions")) do
-        modify(unquote(column), unquote(type), unquote(opts))
+        modify(unquote(column), versions_type(unquote(type)), unquote(opts))
       end
     end
   end
@@ -189,22 +186,34 @@ defmodule Versioned.Migration do
   @doc """
   Renames a table table and its versioned counterpart.
 
-  Note: If the table is `cars`, then `cars_versions` has a `car_id` field. If
+  See `Ecto.Migration.rename/2`.
+
+  ## Other Considerations
+
+  If the table is `cars`, then `cars_versions` has a `car_id` field. If
   the table is being renamed to `automobiles`, then after using this macro,
   you'll want to also do something like the following in order to rename the
   `car_id` field in the versions table to `automobile_id`.
 
       rename table("automobiles_versions"), :car_id, to: :automobile_id
 
-  See `Ecto.Migration.rename/2`.
+  If your table has additional foreign key constraints such as those set up with
+  `Ecto.Migration.references/2`, you'll want to move those over, too, with
+  something like this. The versions table won't have any such constraints.
+
+      execute(
+        "ALTER TABLE automobiles RENAME CONSTRAINT cars_garage_id_fkey TO automobiles_garage_id_fkey;",
+        "ALTER TABLE automobiles RENAME CONSTRAINT automobiles_garage_id_fkey TO cars_garage_id_fkey;"
+      )
 
   ## Example
 
-      defmodule MyApp.Repo.Migrations.RenameMyTable do
+      defmodule MyApp.Repo.Migrations.RenameCarsToAutomobiles do
         use Versioned.Migration
 
         def change do
-          rename_versioned_table("my_table", "my_new_table")
+          rename_versioned_table("cars", "automobiles")
+          rename table("automobiles_versions"), :car_id, to: :automobile_id
         end
       end
   """
