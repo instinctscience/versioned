@@ -219,7 +219,8 @@ defmodule Versioned.Migration do
         use Versioned.Migration
 
         def change do
-          rename_versioned_table("my_table", "my_new_table")
+          rename_versioned_table("cars", "automobiles")
+          rename table("automobiles_versions"), :car_id, to: :automobile_id
         end
       end
   """
