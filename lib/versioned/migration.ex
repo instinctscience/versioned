@@ -215,7 +215,7 @@ defmodule Versioned.Migration do
 
   ## Example
 
-      defmodule MyApp.Repo.Migrations.RenameMyTable do
+      defmodule MyApp.Repo.Migrations.RenameCarsToAutomobiles do
         use Versioned.Migration
 
         def change do
