@@ -91,20 +91,12 @@ defmodule Versioned.Migration do
   the versions table.
   """
   defmacro add_versioned_column(table_name, name, type, opts \\ []) do
-    {singular, opts} = Keyword.pop(opts, :singular, to_string(table_name))
-
-    quote bind_quoted: [
-            table_name: table_name,
-            name: name,
-            opts: opts,
-            type: type,
-            singular: singular
-          ] do
+    quote bind_quoted: [table_name: table_name, name: name, opts: opts, type: type] do
       alter table(table_name) do
         add(name, type, opts)
       end
 
-      alter table(:"#{singular}_versions") do
+      alter table("#{table_name}_versions") do
         add(name, versions_type(type), opts)
       end
     end
