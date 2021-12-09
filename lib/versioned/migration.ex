@@ -62,12 +62,8 @@ defmodule Versioned.Migration do
   end
 
   # Strip foreign key constraints for versions tables.
-  defmacro versions_type(tuple), do: do_versions_type(tuple)
-
-  defp do_versions_type({:references, _m, ref_args}),
-    do: Enum.at(ref_args, 1, [])[:type] || :bigserial
-
-  defp do_versions_type(other), do: other
+  def versions_type(%Ecto.Migration.Reference{type: type}), do: type
+  def versions_type(other), do: other
 
   # Take the original migration ast and attach to the accumulator the
   # corresponding ast to use for the version table.
@@ -76,8 +72,9 @@ defmodule Versioned.Migration do
     do_version_line({:add, a, [b, tup, []]}, acc)
   end
 
-  defp do_version_line({:add, m, [foreign_key, {:references, _m2, _} = tup, field_opts]}, acc) do
-    [{:add, m, [foreign_key, do_versions_type(tup), field_opts]} | acc]
+  defp do_version_line({:add, m, [foreign_key, {:references, _m2, ref_args}, field_opts]}, acc) do
+    type = Enum.at(ref_args, 1, [])[:type] || :bigserial
+    [{:add, m, [foreign_key, type, field_opts]} | acc]
   end
 
   defp do_version_line(line, acc) do
@@ -91,13 +88,13 @@ defmodule Versioned.Migration do
   the versions table.
   """
   defmacro add_versioned_column(table_name, name, type, opts \\ []) do
-    quote bind_quoted: [table_name: table_name, name: name, opts: opts, type: type] do
-      alter table(table_name) do
-        add(name, type, opts)
+    quote do
+      alter table(unquote(table_name)) do
+        add(unquote(name), unquote(type), unquote(opts))
       end
 
-      alter table("#{table_name}_versions") do
-        add(name, versions_type(type), opts)
+      alter table("#{unquote(table_name)}_versions") do
+        add(unquote(name), versions_type(unquote(type)), unquote(opts))
       end
     end
   end

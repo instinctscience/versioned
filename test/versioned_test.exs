@@ -110,6 +110,7 @@ defmodule VersionedTest do
       """)
 
     assert Enum.any?(rows, &(&1 == ["cars", "color", "character varying"]))
+    assert Enum.any?(rows, &(&1 == ["cars", "garage_id", "bigint"]))
   end
 
   test "simultaneous inserts, preload" do
