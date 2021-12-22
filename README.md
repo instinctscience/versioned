@@ -6,6 +6,11 @@
 [![License](https://img.shields.io/hexpm/l/versioned.svg)](https://github.com/instinctscience/versioned/blob/master/LICENSE)
 [![Last Updated](https://img.shields.io/github/last-commit/instinctscience/versioned.svg)](https://github.com/instinctscience/versioned/commits/master)
 
+Note: Elixir 1.13 introduced
+a [regression](https://github.com/elixir-ecto/ecto/issues/3803) which will
+cause warnings for each of your versioned schema modules. José indicated it
+should be resolved in 1.13.2.
+
 Versioned is a tool for enhancing `Ecto.Schema` modules to keep a full
 history of changes.
 
