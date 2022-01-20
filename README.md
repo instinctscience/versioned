@@ -41,7 +41,7 @@ versions, newest first.
 ```elixir
 def deps do
   [
-    {:versioned, "~> 0.2.0"}
+    {:versioned, "~> 0.3.0"}
   ]
 end
 ```
