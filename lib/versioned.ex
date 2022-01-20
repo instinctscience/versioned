@@ -18,6 +18,16 @@ defmodule Versioned do
   end
 
   @doc """
+  Same as `insert/2` but returns the struct or raises if the changeset is
+  invalid.
+  """
+  @spec insert!(Schema.t() | Changeset.t(), keyword) :: Schema.t() | no_return
+  def insert!(struct_or_changeset, opts \\ []) do
+    {:ok, struct} = Versioned.insert(struct_or_changeset, opts)
+    struct
+  end
+
+  @doc """
   Updates a versioned changeset using its primary key.
   """
   @spec update(Changeset.t(), keyword) ::
@@ -32,9 +42,19 @@ defmodule Versioned do
   end
 
   @doc """
+  Same as `update/2` but returns the struct or raises if the changeset is
+  invalid.
+  """
+  @spec update!(Changeset.t(), keyword) :: Schema.t() | no_return
+  def update!(struct_or_changeset, opts \\ []) do
+    {:ok, struct} = Versioned.update(struct_or_changeset, opts)
+    struct
+  end
+
+  @doc """
   Deletes a struct using its primary key and adds a deleted version.
   """
-  @spec delete(struct_or_changeset :: Schema.t() | Changeset.t(), opts :: Keyword.t()) ::
+  @spec delete(Schema.t() | Changeset.t(), keyword) ::
           {:ok, Schema.t()}
           | {:error, any()}
           | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
@@ -43,6 +63,16 @@ defmodule Versioned do
     |> Versioned.Multi.delete(:the, struct_or_changeset, opts)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
+  end
+
+  @doc """
+  Same as `delete/2` but returns the struct or raises if the changeset is
+  invalid.
+  """
+  @spec delete!(Schema.t() | Changeset.t(), keyword) :: Schema.t() | no_return
+  def delete!(struct_or_changeset, opts \\ []) do
+    {:ok, struct} = Versioned.delete(struct_or_changeset, opts)
+    struct
   end
 
   # If the transaction return is successful and the record has a `:version_id`
