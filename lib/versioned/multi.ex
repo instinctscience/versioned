@@ -5,6 +5,10 @@ defmodule Versioned.Multi do
   alias Ecto.Multi
   alias Ecto.{Changeset, Multi, Schema}
 
+  defdelegate new, to: Ecto.Multi
+
+  @type name :: atom | String.t()
+
   @doc """
   Returns an Ecto.Multi with all steps necessary to insert a versioned record.
 
@@ -13,15 +17,18 @@ defmodule Versioned.Multi do
     * `"puppy_record"` - The inserted record itself.
     * `"puppy_version"` - The inserted version record.
   """
-  @spec insert(Ecto.Multi.t(), atom | String.t(), Schema.t() | Changeset.t(), keyword) ::
-          Ecto.Multi.t()
-  def insert(multi, name, struct_or_changeset, opts \\ []) do
-    cs = Changeset.change(struct_or_changeset)
+  @spec insert(
+          Multi.t(),
+          name,
+          Changeset.t() | Schema.t() | Ecto.Multi.fun(Changeset.t() | Schema.t()),
+          keyword
+        ) :: Ecto.Multi.t()
+  def insert(multi, name, changeset_or_struct_or_fun, opts \\ []) do
     opts = Keyword.merge(opts, change: true, inserted_at: DateTime.utc_now())
     record_field = "#{name}_record"
 
     multi
-    |> Multi.insert(record_field, cs, opts)
+    |> Multi.insert(record_field, changeset_or_struct_or_fun, opts)
     |> Multi.run("#{name}_version", fn repo, %{^record_field => record} ->
       case build_version(record, opts) do
         nil -> {:ok, nil}
@@ -43,26 +50,43 @@ defmodule Versioned.Multi do
     * `"puppy_deletes"` - List of association version records which were
       deleted.
   """
-  @spec update(Ecto.Multi.t(), atom | String.t(), Changeset.t(), keyword) :: Ecto.Multi.t()
-  def update(multi, name, changeset, opts \\ []) do
-    opts = Keyword.merge(opts, change: changeset, inserted_at: DateTime.utc_now())
+  @spec update(
+          Ecto.Multi.t(),
+          atom | String.t(),
+          Changeset.t() | Ecto.Multi.fun(Ecto.Changeset.t()),
+          keyword
+        ) :: Ecto.Multi.t()
+  def update(multi, name, changeset_or_fun, opts \\ []) do
     record_field = "#{name}_record"
+    record_field_full = "#{record_field}_full"
+    opts = Keyword.merge(opts, inserted_at: DateTime.utc_now())
 
     multi
-    |> Multi.update(record_field, changeset, opts)
-    |> Multi.run("#{name}_version", fn repo, %{^record_field => record} ->
-      v = build_version(record, opts)
+    |> Multi.run(record_field_full, fn repo, changes ->
+      cs = with f when is_function(f) <- changeset_or_fun, do: f.(repo, changes)
+      opts = fn -> Keyword.put(opts, :change, cs) end
+      with {:ok, updated} <- repo.update(cs), do: {:ok, {updated, opts.()}}
+    end)
+    # |> Multi.update(record_field, changeset_or_fun, opts)
+    |> Multi.run("#{name}_version", fn repo, %{^record_field_full => {rec, o}} ->
+      v = build_version(rec, o)
       if v, do: repo.insert(v), else: {:ok, nil}
     end)
-    |> Multi.run("#{name}_deletes", fn repo, _changes ->
-      do_update_deletes(repo, changeset, opts)
+    |> Multi.run("#{name}_deletes", fn repo, %{^record_field_full => {_, o}} ->
+      do_update_deletes(repo, o)
+    end)
+    # Attach the updated record itself, directly.
+    |> Multi.run(record_field, fn _, %{^record_field_full => {rec, _}} ->
+      {:ok, rec}
     end)
   end
 
-  @spec do_update_deletes(Ecto.Repo.t(), Changeset.t(), keyword) ::
+  @spec do_update_deletes(Ecto.Repo.t(), keyword) ::
           {:ok, [Schema.t()]} | {:error, Changeset.t()}
-  defp do_update_deletes(repo, changeset, opts) do
-    Enum.reduce_while(deleted_versions(changeset, opts), {:ok, []}, fn deleted, {:ok, acc} ->
+  defp do_update_deletes(repo, opts) do
+    opts[:change]
+    |> deleted_versions(opts)
+    |> Enum.reduce_while({:ok, []}, fn deleted, {:ok, acc} ->
       case repo.insert(deleted) do
         {:ok, del} -> {:cont, {:ok, [del | acc]}}
         {:error, _} = err -> {:halt, err}
