@@ -35,9 +35,8 @@ defmodule Versioned.MixProject do
     [
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
-      {:ecto_sql, "~> 3.2"},
+      {:ecto_sql, "~> 3.0"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:mix_test_watch, "~> 1.0", only: :dev, runtime: false},
       {:postgrex, "~> 0.15", only: [:test]}
     ]
   end
@@ -48,11 +47,9 @@ defmodule Versioned.MixProject do
   defp aliases do
     [
       ci: ["lint", "test", "dialyzer"],
-      "ecto.setup": ["ecto.create", "ecto.migrate"],
-      "ecto.reset": ["ecto.drop", "ecto.setup"],
       lint: [
         "compile",
-        # "compile --warnings-as-errors",
+        "compile --warnings-as-errors",
         "format --check-formatted",
         "credo"
       ]

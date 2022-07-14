@@ -60,27 +60,27 @@ defmodule Versioned.Multi do
     multi
     |> Multi.run(record_field_full, fn repo, changes ->
       cs = with f when is_function(f) <- changeset_or_fun, do: f.(changes)
-      opts = fn -> Keyword.put(opts, :change, cs) end
-      with {:ok, updated} <- repo.update(cs), do: {:ok, {updated, opts.()}}
+      opts = Keyword.put(opts, :change, cs)
+      result = repo.update(cs)
+      {:ok, {result, opts}}
     end)
-    |> Multi.run("#{name}_version", fn repo, %{^record_field_full => {rec, o}} ->
+    # Attach the updated record itself directly or stop on error.
+    |> Multi.run(record_field, fn
+      _, %{^record_field_full => {{:ok, rec}, _}} -> {:ok, rec}
+      _, %{^record_field_full => {{:error, _} = err, _}} -> err
+    end)
+    |> Multi.run("#{name}_version", fn repo, %{^record_field_full => {{:ok, rec}, o}} ->
       v = build_version(rec, o)
       if v, do: repo.insert(v), else: {:ok, nil}
     end)
     |> Multi.run("#{name}_deletes", fn repo, %{^record_field_full => {_, o}} ->
       do_update_deletes(repo, o)
     end)
-    # Attach the updated record itself, directly.
-    |> Multi.run(record_field, fn _, %{^record_field_full => {rec, _}} ->
-      {:ok, rec}
-    end)
   end
 
   @spec do_update_deletes(repo, keyword) :: {:ok, [schema]} | {:error, cs}
   defp do_update_deletes(repo, opts) do
-    opts[:change]
-    |> deleted_versions(opts)
-    |> Enum.reduce_while({:ok, []}, fn deleted, {:ok, acc} ->
+    Enum.reduce_while(deleted_versions(opts), {:ok, []}, fn deleted, {:ok, acc} ->
       case repo.insert(deleted) do
         {:ok, del} -> {:cont, {:ok, [del | acc]}}
         {:error, _} = err -> {:halt, err}

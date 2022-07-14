@@ -1,7 +1,7 @@
 defmodule Versioned do
   @moduledoc "Tools for operating on versioned records."
   import Ecto.Query, except: [preload: 2]
-  alias Ecto.{Changeset, Queryable, Schema}
+  alias Ecto.{Changeset, Multi, Queryable, Schema}
 
   @doc """
   Inserts a versioned struct defined via Ecto.Schema or a changeset.
@@ -9,9 +9,9 @@ defmodule Versioned do
   @spec insert(Schema.t() | Changeset.t(), keyword) ::
           {:ok, Schema.t()}
           | {:error, any()}
-          | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
+          | {:error, Multi.name(), any(), %{required(Multi.name()) => any()}}
   def insert(struct_or_changeset, opts \\ []) do
-    Ecto.Multi.new()
+    Multi.new()
     |> Versioned.Multi.insert(:the, struct_or_changeset, opts)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
@@ -33,9 +33,9 @@ defmodule Versioned do
   @spec update(Changeset.t(), keyword) ::
           {:ok, Schema.t()}
           | {:error, any()}
-          | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
+          | {:error, Multi.name(), any(), %{required(Multi.name()) => any()}}
   def update(changeset, opts \\ []) do
-    Ecto.Multi.new()
+    Multi.new()
     |> Versioned.Multi.update(:the, changeset, opts)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()
@@ -57,9 +57,9 @@ defmodule Versioned do
   @spec delete(Schema.t() | Changeset.t(), keyword) ::
           {:ok, Schema.t()}
           | {:error, any()}
-          | {:error, Ecto.Multi.name(), any(), %{required(Ecto.Multi.name()) => any()}}
+          | {:error, Multi.name(), any(), %{required(Multi.name()) => any()}}
   def delete(struct_or_changeset, opts \\ []) do
-    Ecto.Multi.new()
+    Multi.new()
     |> Versioned.Multi.delete(:the, struct_or_changeset, opts)
     |> repo().transaction()
     |> maybe_add_version_id_and_return_record()

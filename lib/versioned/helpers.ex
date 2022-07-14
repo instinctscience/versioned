@@ -31,12 +31,17 @@ defmodule Versioned.Helpers do
   @doc """
   Recursively crawl changeset and compile a list of version structs with
   is_deleted set to true.
+
+  The changeset to operate on is passed in either as the first parameter or
+  under the `:change` key in `opts`.
   """
-  @spec deleted_versions(Changeset.t(), keyword) :: [Ecto.Schema.t()]
-  def deleted_versions(%{action: action, data: %mod{}} = changeset, opts) do
+  @spec deleted_versions(Changeset.t() | nil, keyword) :: [Ecto.Schema.t()]
+  def deleted_versions(changeset \\ nil, opts) do
+    %{action: action, data: %mod{}} = cs = changeset || opts[:change]
+
     deletes =
       if action == :replace do
-        changeset
+        cs
         |> Changeset.apply_changes()
         |> maybe_build_version_params(Keyword.put(opts, :deleted, true))
         |> case do
@@ -49,7 +54,7 @@ defmodule Versioned.Helpers do
 
     Enum.reduce(mod.__schema__(:associations), deletes, fn assoc, acc ->
       %{cardinality: cardinality} = mod.__schema__(:association, assoc)
-      change = Changeset.get_change(changeset, assoc)
+      change = Changeset.get_change(cs, assoc)
 
       case {cardinality, change} do
         {_, nil} -> acc
