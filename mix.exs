@@ -2,7 +2,7 @@ defmodule Versioned.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/instinctscience/versioned"
-  @version "0.3.3"
+  @version "0.4.0"
 
   def project do
     [
@@ -35,9 +35,9 @@ defmodule Versioned.MixProject do
     [
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
-      {:ecto_sql, "~> 3.0"},
+      {:ecto_sql, ">= 3.0.0"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:postgrex, "~> 0.15", only: [:test]}
+      {:postgrex, ">= 0.15.0", only: [:test]}
     ]
   end
 

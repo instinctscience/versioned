@@ -7,8 +7,12 @@ and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.4.0]
+
 ## Changed
 
+- `Versioned.Multi` functions now return the main record with the very same name
+  given. (Previously, it was coerced into a string and appended with "_record".)
 - `Versioned.Multi` functions now accept functions to more closely match the
   `Ecto.Multi` API.
 
