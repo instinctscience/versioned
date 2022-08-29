@@ -6,7 +6,7 @@ defmodule Versioned.MultiTest do
   alias Versioned.Test.Repo
 
   defp test_insert(input) do
-    assert {:ok, %{"car_record" => %{id: car_id}}} =
+    assert {:ok, %{car: %{id: car_id}}} =
              Multi.new()
              |> Multi.insert(:car, input)
              |> Repo.transaction()
@@ -31,7 +31,7 @@ defmodule Versioned.MultiTest do
   test "update with changeset" do
     {:ok, car} = Versioned.insert(%Car{name: "Toad"})
 
-    assert {:ok, %{"car_record" => %{name: "Magnificent"}}} =
+    assert {:ok, %{car: %{name: "Magnificent"}}} =
              Multi.new()
              |> Multi.update(:car, Car.changeset(car, %{name: "Magnificent"}))
              |> Repo.transaction()
@@ -40,9 +40,9 @@ defmodule Versioned.MultiTest do
   end
 
   test "update with function" do
-    fun = &Car.changeset(&1["car_record"], %{name: "Magnificent"})
+    fun = &Car.changeset(&1.car, %{name: "Magnificent"})
 
-    assert {:ok, %{"car_updated_record" => %{name: "Magnificent"} = car}} =
+    assert {:ok, %{car_updated: %{name: "Magnificent"} = car}} =
              Multi.new()
              |> Multi.insert(:car, %Car{name: "Toad"})
              |> Multi.update(:car_updated, fun)
@@ -54,7 +54,7 @@ defmodule Versioned.MultiTest do
   test "delete with schema" do
     {:ok, %{id: car_id} = car} = Versioned.insert(%Car{name: "Toad"})
 
-    assert {:ok, %{"car_record" => %{id: ^car_id}}} =
+    assert {:ok, %{car: %{id: ^car_id}}} =
              Multi.new()
              |> Multi.delete(:car, car)
              |> Repo.transaction()
@@ -66,7 +66,7 @@ defmodule Versioned.MultiTest do
   test "delete with changeset" do
     {:ok, %{id: car_id} = car} = Versioned.insert(%Car{name: "Toad"})
 
-    assert {:ok, %{"car_record" => %{id: ^car_id}}} =
+    assert {:ok, %{car: %{id: ^car_id}}} =
              Multi.new()
              |> Multi.delete(:car, Changeset.change(car))
              |> Repo.transaction()
@@ -76,10 +76,10 @@ defmodule Versioned.MultiTest do
   end
 
   test "delete with function" do
-    assert {:ok, %{"car_record" => %{id: car_id}, "car_deleted_record" => %{id: car_id}}} =
+    assert {:ok, %{car: %{id: car_id}, car_deleted: %{id: car_id}}} =
              Multi.new()
              |> Multi.insert(:car, %Car{name: "Toad"})
-             |> Multi.delete(:car_deleted, & &1["car_record"])
+             |> Multi.delete(:car_deleted, & &1.car)
              |> Repo.transaction()
 
     assert [%Car.Version{is_deleted: true}, %Car.Version{is_deleted: false}] =

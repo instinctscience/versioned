@@ -80,11 +80,11 @@ defmodule Versioned do
   @spec maybe_add_version_id_and_return_record(tuple) ::
           {:ok, Schema.t()} | {:error, Changeset.t()} | {:error, String.t()}
   defp maybe_add_version_id_and_return_record(
-         {:ok, %{"the_record" => %{version_id: _} = record, "the_version" => %{id: version_id}}}
+         {:ok, %{:the => %{version_id: _} = record, "the_version" =>  %{id: version_id}}}
        ),
        do: {:ok, %{record | version_id: version_id}}
 
-  defp maybe_add_version_id_and_return_record({:ok, %{"the_record" => record}}), do: {:ok, record}
+  defp maybe_add_version_id_and_return_record({:ok, %{the: record}}), do: {:ok, record}
 
   defp maybe_add_version_id_and_return_record({:error, _, %Ecto.Changeset{} = changeset, _}),
     do: {:error, changeset}
