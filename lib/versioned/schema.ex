@@ -131,7 +131,7 @@ defmodule Versioned.Schema do
 
       schema unquote(source) do
         field :version_id, :binary_id, virtual: true
-        has_many :versions, __MODULE__.Version
+        has_many :versions, __MODULE__.Version, foreign_key: :"#{@source_singular}_id"
         timestamps type: :utc_datetime_usec
         unquote(remove_versioned_opts(block))
       end
